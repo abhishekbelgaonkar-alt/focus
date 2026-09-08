@@ -24,26 +24,32 @@ export default function SettingsPage() {
   useEffect(() => {
     setNudgeEnabled(localStorage.getItem(NUDGE_KEY) !== 'false')
 
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { setLoading(false); return }
-      setEmail(data.user.email ?? '')
-      setIsAnonymous(!data.user.email)
+    ;(async () => {
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (!data.user) return
+        setEmail(data.user.email ?? '')
+        setIsAnonymous(!data.user.email)
 
-      const [{ count: tc }, { count: sc }] = await Promise.all([
-        supabase
-          .from('distraction_tags')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', data.user.id),
-        supabase
-          .from('goals')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', data.user.id)
-          .not('schedule', 'is', null),
-      ])
-      setTagCount(tc ?? 0)
-      setScheduleCount(sc ?? 0)
-      setLoading(false)
-    })
+        const [{ count: tc }, { count: sc }] = await Promise.all([
+          supabase
+            .from('distraction_tags')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', data.user.id),
+          supabase
+            .from('goals')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', data.user.id)
+            .not('schedule', 'is', null),
+        ])
+        setTagCount(tc ?? 0)
+        setScheduleCount(sc ?? 0)
+      } catch {
+        /* page still usable */
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
   const handleNudgeToggle = () => {

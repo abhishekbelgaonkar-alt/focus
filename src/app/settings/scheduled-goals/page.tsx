@@ -21,19 +21,24 @@ export default function ScheduledGoalsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('goals')
-      .select('id, name, schedule')
-      .not('schedule', 'is', null)
-      .order('name')
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('goals')
+          .select('id, name, schedule')
+          .not('schedule', 'is', null)
+          .order('name')
         setGoals(
           ((data ?? []) as ScheduledGoal[]).filter(
             (g) => g.schedule && g.schedule.length > 0
           )
         )
+      } catch {
+        // Swallow — empty state will render.
+      } finally {
         setLoading(false)
-      })
+      }
+    })()
   }, [])
 
   const handleRemove = async (goalId: string) => {
@@ -53,9 +58,19 @@ export default function ScheduledGoalsPage() {
       </div>
 
       {goals.length === 0 ? (
-        <p className="font-sans text-sm text-text-muted">
-          No goals with a schedule yet. Open a goal to set one.
-        </p>
+        <div className="border border-border-warm rounded-xl p-5">
+          <p className="font-sans text-sm text-text-primary mb-2">No scheduled goals yet.</p>
+          <p className="font-sans text-sm text-text-muted mb-4">
+            To schedule a goal, open{' '}
+            <button
+              onClick={() => router.push('/goals')}
+              className="text-coral underline"
+            >
+              All goals
+            </button>
+            , tap a goal, then hit &ldquo;Schedule this goal&rdquo;.
+          </p>
+        </div>
       ) : (
         <div className="flex flex-col">
           {goals.map((g) => (

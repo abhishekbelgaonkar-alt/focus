@@ -9,6 +9,7 @@ interface DurationPickerProps {
 }
 
 const LABEL_INTERVAL = 15
+const SLIDER_HEIGHT = 28   // must match .focus-slider height in globals.css
 
 export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -53,8 +54,8 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
         />
       </div>
 
-      {/* 15-min labels above the tick SVG */}
-      <div className="relative w-full h-5 mb-0.5">
+      {/* 15-min labels above the tick+slider stack */}
+      <div className="relative w-full h-5 mb-1">
         {labels.map((m) => (
           <span
             key={m}
@@ -66,40 +67,50 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
         ))}
       </div>
 
-      {/* SVG tick marks: tiny every 1 min, medium every 5, tall every 15 */}
-      <svg className="w-full mb-2" height="16" preserveAspectRatio="none" aria-hidden="true">
-        {ticks.map((m) => {
-          const isLarge = m % 15 === 0
-          const isMedium = m % 5 === 0 && !isLarge
-          const height = isLarge ? 12 : isMedium ? 7 : 4
-          const x = `${((m - min) / range) * 100}%`
-          return (
-            <line
-              key={m}
-              x1={x}
-              x2={x}
-              y1={16 - height}
-              y2="16"
-              stroke={isLarge ? '#b08c6a' : '#c9b79c'}
-              strokeWidth={isLarge ? '1.5' : '1'}
-            />
-          )
-        })}
-      </svg>
+      {/* Slider + tick marks OVERLAID — thumb slides directly on tick marks.
+          Three tick tiers: tiny (1 min), medium (5 min), tall (15 min). */}
+      <div className="relative w-full" style={{ height: SLIDER_HEIGHT }}>
+        <svg
+          className="absolute inset-0 w-full pointer-events-none"
+          width="100%"
+          height={SLIDER_HEIGHT}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          {ticks.map((m) => {
+            const isLarge = m % 15 === 0
+            const isMedium = m % 5 === 0 && !isLarge
+            const halfHeight = isLarge ? 12 : isMedium ? 7 : 4
+            const x = `${((m - min) / range) * 100}%`
+            const cy = SLIDER_HEIGHT / 2
+            return (
+              <line
+                key={m}
+                x1={x}
+                x2={x}
+                y1={cy - halfHeight}
+                y2={cy + halfHeight}
+                stroke={isLarge ? '#b08c6a' : '#c9b79c'}
+                strokeWidth={isLarge ? '1.5' : '1'}
+              />
+            )
+          })}
+        </svg>
 
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={1}
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        className="focus-slider"
-        aria-label="Duration slider"
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuenow={value}
-      />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="focus-slider relative"
+          aria-label="Duration slider"
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+        />
+      </div>
     </div>
   )
 }

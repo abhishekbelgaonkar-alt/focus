@@ -21,10 +21,16 @@ export default function AllGoalsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.rpc('get_goal_stats').then(({ data }) => {
-      setGoals((data ?? []) as GoalStat[])
-      setLoading(false)
-    })
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('get_goal_stats')
+        setGoals((data ?? []) as GoalStat[])
+      } catch {
+        /* empty state renders */
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
   if (loading) return null

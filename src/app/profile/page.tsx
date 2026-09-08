@@ -31,24 +31,30 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { setLoading(false); return }
-      setEmail(data.user.email ?? null)
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (!data.user) return
+        setEmail(data.user.email ?? null)
 
-      const { data: s } = await supabase
-        .from('sessions')
-        .select(`
-          id, session_name, planned_duration_minutes, actual_duration_minutes,
-          started_at, ended_at, rating, notes, end_reason,
-          goals(name), categories(name),
-          session_distraction_tags(distraction_tags(name))
-        `)
-        .eq('user_id', data.user.id)
-        .order('started_at', { ascending: true })
+        const { data: s } = await supabase
+          .from('sessions')
+          .select(`
+            id, session_name, planned_duration_minutes, actual_duration_minutes,
+            started_at, ended_at, rating, notes, end_reason,
+            goals(name), categories(name),
+            session_distraction_tags(distraction_tags(name))
+          `)
+          .eq('user_id', data.user.id)
+          .order('started_at', { ascending: true })
 
-      setSessions((s ?? []) as unknown as FullSession[])
-      setLoading(false)
-    })
+        setSessions((s ?? []) as unknown as FullSession[])
+      } catch {
+        /* renders zeros */
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
   const handleSignOut = async () => {

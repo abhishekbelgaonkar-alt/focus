@@ -14,14 +14,19 @@ export default function TagsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('distraction_tags')
-      .select('*')
-      .order('created_at')
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('distraction_tags')
+          .select('*')
+          .order('created_at')
         setTags((data ?? []) as DistractionTag[])
+      } catch {
+        /* renders empty list */
+      } finally {
         setLoading(false)
-      })
+      }
+    })()
   }, [])
 
   const startEdit = (tag: DistractionTag) => {

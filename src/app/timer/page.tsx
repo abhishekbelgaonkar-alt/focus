@@ -39,10 +39,12 @@ export default function TimerPage() {
     if (!s) { router.replace('/setup'); return }
     setSession(s)
 
+    const sessionStartedAt = new Date(s.startedAt).getTime()
     let t = loadTimerState()
-    if (!t) {
+    // Discard stale timer state from a previous session — its startedAt won't match.
+    if (!t || t.startedAt !== sessionStartedAt) {
       t = {
-        startedAt: new Date(s.startedAt).getTime(),
+        startedAt: sessionStartedAt,
         plannedMs: s.plannedDurationMinutes * 60 * 1000,
         pausedAt: null,
         totalPausedMs: 0,

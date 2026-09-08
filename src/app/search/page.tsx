@@ -71,7 +71,7 @@ export default function SearchPage() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search sessions…"
+            placeholder="Search through your session names, notes, etc."
             className="flex-1 bg-transparent font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none"
           />
         </div>

@@ -8,6 +8,7 @@
   --color-text-light: #c9b79c;
   --color-border-warm: #ecdcc9;
   --color-coral: #d9642e;
+  --color-coral-soft: #e8905a;   /* dimmer coral for slider thumbs */
   --color-coral-light: #fbe6d4;
   --color-tag-text: #a05a1f;
 
@@ -27,17 +28,17 @@
 }
 
 /*
-  Custom slider — shared by DurationPicker and RatingSlider.
-  All four properties must be reset; browsers leak native styling even after
-  `appearance: none` depending on platform.
+  Custom slider — used by both DurationPicker and RatingSlider.
+  The track is transparent so tick marks (rendered as SVG behind the input)
+  provide the only visual guide. The thumb slides visually "on" the tick marks.
 */
 .focus-slider {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   width: 100%;
-  height: 2px;
-  background: #ecdcc9;
+  height: 28px;              /* full click area so users can grab it easily */
+  background: transparent;
   cursor: pointer;
   outline: none;
   border: none;
@@ -47,37 +48,40 @@
 }
 
 .focus-slider::-webkit-slider-runnable-track {
-  height: 2px;
-  background: #ecdcc9;
+  height: 28px;
+  background: transparent;
   border: none;
   box-shadow: none;
 }
 
 .focus-slider::-moz-range-track {
-  height: 2px;
-  background: #ecdcc9;
+  height: 28px;
+  background: transparent;
   border: none;
   box-shadow: none;
 }
 
-/* Thin vertical coral line thumb — NOT a circular dot */
+/*
+  Thin vertical bar thumb — dimmer coral (brighter than tick marks
+  but softer than the primary coral accent).
+*/
 .focus-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 4px;
-  height: 26px;
-  background: #d9642e;
+  height: 28px;
+  background: #e8905a;
   border: none;
   box-shadow: none;
   cursor: pointer;
   border-radius: 2px;
-  margin-top: -12px;
+  margin-top: 0;
 }
 
 .focus-slider::-moz-range-thumb {
   width: 4px;
-  height: 26px;
-  background: #d9642e;
+  height: 28px;
+  background: #e8905a;
   border: none;
   box-shadow: none;
   cursor: pointer;

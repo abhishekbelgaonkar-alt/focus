@@ -1,7 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { DurationPicker } from '@/components/DurationPicker'
+import { saveSession } from '@/lib/session-state'
 import { formatDuration } from '@/lib/format'
 import type { Weekday } from '@/lib/types'
 
@@ -18,38 +20,77 @@ interface GoalStat {
 }
 
 const WEEKDAYS: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+const DEFAULT_DURATION = 3
 
-export default function HomePage() {
+function HomePageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const preselectedGoalId = searchParams.get('goalId')
   const supabase = createClient()
 
   const [loading, setLoading] = useState(true)
   const [goalStats, setGoalStats] = useState<GoalStat[]>([])
   const [todayGoals, setTodayGoals] = useState<GoalStat[]>([])
 
+  // Timer setup state — lives on the home screen now
+  const [duration, setDuration] = useState(DEFAULT_DURATION)
+  const [focusText, setFocusText] = useState('')
+  const [resolvedGoalId, setResolvedGoalId] = useState<string | null>(null)
+
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { setLoading(false); return }
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (!data.user) return
 
-      const { count } = await supabase
-        .from('sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', data.user.id)
+        const { data: stats } = await supabase.rpc('get_goal_stats')
+        const all = (stats ?? []) as GoalStat[]
+        setGoalStats(all)
 
-      if (!count) {
-        router.replace('/setup')
-        return
+        const today = WEEKDAYS[new Date().getDay()]
+        setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
+
+        // If a specific goal was preselected via ?goalId=…, prefill setup form
+        if (preselectedGoalId) {
+          const match = all.find((g) => g.goal_id === preselectedGoalId)
+          if (match) {
+            setResolvedGoalId(preselectedGoalId)
+            setFocusText(match.name)
+            const { data: g } = await supabase
+              .from('goals')
+              .select('last_used_duration_minutes')
+              .eq('id', preselectedGoalId)
+              .single()
+            if (g?.last_used_duration_minutes) {
+              setDuration(g.last_used_duration_minutes)
+            }
+          }
+        }
+      } catch {
+        /* renders defaults */
+      } finally {
+        setLoading(false)
       }
+    })()
+  }, [preselectedGoalId])
 
-      const { data: stats } = await supabase.rpc('get_goal_stats')
-      const all = (stats ?? []) as GoalStat[]
-      setGoalStats(all)
-
-      const today = WEEKDAYS[new Date().getDay()]
-      setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
-      setLoading(false)
+  const handleStart = () => {
+    saveSession({
+      plannedDurationMinutes: duration,
+      startedAt: new Date().toISOString(),
+      setupFocusText: focusText.trim() || null,
+      goalId: resolvedGoalId,
+      categoryId: null,
+      endReason: null,
+      actualDurationMinutes: null,
     })
-  }, [])
+    router.push('/timer')
+  }
+
+  const handleContinueGoal = (goalId: string) => {
+    // Update URL so the setup form prefills — a soft "continue" flow.
+    router.push(`/?goalId=${goalId}`)
+  }
 
   if (loading) return null
 
@@ -62,17 +103,47 @@ export default function HomePage() {
     <main className="min-h-screen bg-cream px-6 pt-12 pb-10 max-w-md mx-auto">
       <p className="font-sans text-sm text-text-muted mb-8">{todayDate}</p>
 
-      {/* Today's plan */}
+      {/* ── Timer setup — top of home ───────────────────────────────────── */}
+      <div className="mb-10">
+        <label className="block font-sans text-lg font-medium text-text-primary mb-1">
+          What are you focusing on?
+        </label>
+        <p className="text-sm text-text-muted mb-4">
+          Optional — you can skip this and add it after
+        </p>
+        <input
+          type="text"
+          value={focusText}
+          onChange={(e) => {
+            setFocusText(e.target.value)
+            // Typing a fresh focus decouples from any preselected goal
+            if (resolvedGoalId) setResolvedGoalId(null)
+          }}
+          placeholder="e.g. Finish thermodynamics ch. 1"
+          className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-base mb-10"
+        />
+
+        <DurationPicker value={duration} onChange={setDuration} />
+
+        <button
+          onClick={handleStart}
+          className="w-full bg-coral text-white font-sans font-medium text-base py-3 rounded-pill mt-10"
+        >
+          Start focus session
+        </button>
+      </div>
+
+      {/* ── Today's plan ─────────────────────────────────────────────────── */}
       {todayGoals.length > 0 && (
         <div className="bg-coral-light rounded-xl p-4 mb-8">
           <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
-            Today's plan
+            Today&apos;s plan
           </p>
           <div className="flex flex-col gap-2">
             {todayGoals.map((g) => (
               <button
                 key={g.goal_id}
-                onClick={() => router.push(`/setup?goalId=${g.goal_id}`)}
+                onClick={() => handleContinueGoal(g.goal_id)}
                 className="text-left font-sans text-sm font-medium text-text-primary"
               >
                 {g.name}
@@ -82,7 +153,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Pick up where you left off */}
+      {/* ── Pick up where you left off ───────────────────────────────────── */}
       {recentGoals.length > 0 && (
         <div className="mb-8">
           <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
@@ -101,7 +172,7 @@ export default function HomePage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => router.push(`/setup?goalId=${g.goal_id}`)}
+                  onClick={() => handleContinueGoal(g.goal_id)}
                   className={`shrink-0 px-4 py-2 rounded-pill font-sans text-sm font-medium ${
                     i === 0
                       ? 'bg-coral text-white'
@@ -116,15 +187,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Start something new */}
-      <button
-        onClick={() => router.push('/setup')}
-        className="w-full border-[1.5px] border-dashed border-border-warm text-text-muted font-sans text-sm py-3 rounded-pill"
-      >
-        Start something new
-      </button>
-
-      {/* Nav */}
+      {/* ── Nav ──────────────────────────────────────────────────────────── */}
       <div className="flex gap-6 mt-8 pt-6 border-t border-border-warm">
         <button
           onClick={() => router.push('/goals')}
@@ -146,5 +209,13 @@ export default function HomePage() {
         </button>
       </div>
     </main>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense>
+      <HomePageInner />
+    </Suspense>
   )
 }
