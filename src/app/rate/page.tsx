@@ -17,6 +17,7 @@ export default function RatePage() {
   const [goalOptions, setGoalOptions] = useState<GoalOption[]>([])
   const [saving, setSaving] = useState(false)
   const [savedCount, setSavedCount] = useState<number | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
     const s = loadSession()
@@ -53,20 +54,34 @@ export default function RatePage() {
   const handleSave = async (form: RatingFormData) => {
     if (!session) return
     setSaving(true)
+    setErrorMsg(null)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); return }
+    const { data: userData, error: userErr } = await supabase.auth.getUser()
+    const user = userData?.user
+    if (userErr || !user) {
+      console.error('[save] no authenticated user', userErr)
+      setErrorMsg(
+        `Not signed in. ${userErr?.message ?? 'Anonymous sign-in may not be enabled in Supabase, or the network call failed.'}`
+      )
+      setSaving(false)
+      return
+    }
 
     let goalId = session.goalId ?? form.existingGoalId
     let categoryId = session.categoryId ?? form.existingCategoryId
 
-    // Create new goal if user chose "Create new" and typed a name
     if (!goalId && !categoryId && form.goalText.trim()) {
-      const { data: newGoal } = await supabase
+      const { data: newGoal, error: goalErr } = await supabase
         .from('goals')
         .insert({ user_id: user.id, name: form.goalText.trim() })
         .select()
         .single()
+      if (goalErr) {
+        console.error('[save] goal insert failed', goalErr)
+        setErrorMsg(`Couldn't create goal: ${goalErr.message}`)
+        setSaving(false)
+        return
+      }
       goalId = newGoal?.id ?? null
     }
 
@@ -88,7 +103,12 @@ export default function RatePage() {
       .select()
       .single()
 
-    if (error || !saved) { setSaving(false); return }
+    if (error || !saved) {
+      console.error('[save] session insert failed', error)
+      setErrorMsg(`Couldn't save session: ${error?.message ?? 'unknown error'}`)
+      setSaving(false)
+      return
+    }
 
     if (form.selectedTagIds.length > 0) {
       await supabase.from('session_distraction_tags').insert(
@@ -133,6 +153,11 @@ export default function RatePage() {
         showGoalPrompt={!session.goalId && !session.categoryId}
         goalOptions={goalOptions}
       />
+      {errorMsg && (
+        <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm font-sans z-50">
+          {errorMsg}
+        </div>
+      )}
       {savedCount !== null && (
         <AccountNudge
           sessionCount={savedCount}
