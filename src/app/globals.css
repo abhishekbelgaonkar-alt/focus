@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-cream: #fdf6ee;
+  --color-text-primary: #3d3126;
+  --color-text-muted: #b08c6a;
+  --color-text-light: #c9b79c;
+  --color-border-warm: #ecdcc9;
+  --color-coral: #d9642e;
+  --color-coral-light: #fbe6d4;
+  --color-tag-text: #a05a1f;
+
+  /* Heatmap scale */
+  --color-heatmap-none: #f0ece2;
+  --color-heatmap-low: #f3d9bd;
+  --color-heatmap-mid: #f0b587;
+  --color-heatmap-high: #e8905a;
+  --color-heatmap-peak: #d9642e;
+
+  /* Fonts — CSS variables set by next/font in layout.tsx */
+  --font-sans: var(--font-outfit), sans-serif;
+  --font-numbers: var(--font-quicksand), sans-serif;
+
+  /* Border radius */
+  --radius-pill: 24px;
+}
+
+/*
+  Custom slider — shared by DurationPicker and RatingSlider.
+  All four properties must be reset; browsers leak native styling even after
+  `appearance: none` depending on platform.
+*/
+.focus-slider {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: #ecdcc9;
+  cursor: pointer;
+  outline: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  display: block;
+}
+
+.focus-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: #ecdcc9;
+  border: none;
+  box-shadow: none;
+}
+
+.focus-slider::-moz-range-track {
+  height: 2px;
+  background: #ecdcc9;
+  border: none;
+  box-shadow: none;
+}
+
+/* Thin vertical coral line thumb — NOT a circular dot */
+.focus-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 4px;
+  height: 26px;
+  background: #d9642e;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  border-radius: 2px;
+  margin-top: -12px;
+}
+
+.focus-slider::-moz-range-thumb {
+  width: 4px;
+  height: 26px;
+  background: #d9642e;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+body {
+  background-color: #fdf6ee;
+  color: #3d3126;
+}
