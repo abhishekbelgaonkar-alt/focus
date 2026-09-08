@@ -138,6 +138,12 @@ export default function HomePage() {
         >
           Search
         </button>
+        <button
+          onClick={() => router.push('/profile')}
+          className="font-sans text-sm text-text-muted"
+        >
+          Profile
+        </button>
       </div>
     </main>
   )
