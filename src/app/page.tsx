@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
+import { SearchBar } from '@/components/SearchBar'
 import { saveSession } from '@/lib/session-state'
 import { formatDuration } from '@/lib/format'
 import type { Weekday } from '@/lib/types'
@@ -31,8 +32,9 @@ function HomePageInner() {
   const [loading, setLoading] = useState(true)
   const [goalStats, setGoalStats] = useState<GoalStat[]>([])
   const [todayGoals, setTodayGoals] = useState<GoalStat[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
 
-  // Timer setup state — lives on the home screen now
+  // Timer setup state — lives on the home screen.
   const [duration, setDuration] = useState(DEFAULT_DURATION)
   const [focusText, setFocusText] = useState('')
   const [resolvedGoalId, setResolvedGoalId] = useState<string | null>(null)
@@ -50,7 +52,6 @@ function HomePageInner() {
         const today = WEEKDAYS[new Date().getDay()]
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
 
-        // If a specific goal was preselected via ?goalId=…, prefill setup form
         if (preselectedGoalId) {
           const match = all.find((g) => g.goal_id === preselectedGoalId)
           if (match) {
@@ -67,7 +68,7 @@ function HomePageInner() {
           }
         }
       } catch {
-        /* renders defaults */
+        /* falls through to defaults */
       } finally {
         setLoading(false)
       }
@@ -88,7 +89,6 @@ function HomePageInner() {
   }
 
   const handleContinueGoal = (goalId: string) => {
-    // Update URL so the setup form prefills — a soft "continue" flow.
     router.push(`/?goalId=${goalId}`)
   }
 
@@ -100,95 +100,9 @@ function HomePageInner() {
   })
 
   return (
-    <main className="min-h-screen bg-cream px-6 pt-12 pb-10 max-w-md mx-auto">
-      <p className="font-sans text-sm text-text-muted mb-8">{todayDate}</p>
-
-      {/* ── Timer setup — top of home ───────────────────────────────────── */}
-      <div className="mb-10">
-        <label className="block font-sans text-lg font-medium text-text-primary mb-1">
-          What are you focusing on?
-        </label>
-        <p className="text-sm text-text-muted mb-4">
-          Optional — you can skip this and add it after
-        </p>
-        <input
-          type="text"
-          value={focusText}
-          onChange={(e) => {
-            setFocusText(e.target.value)
-            // Typing a fresh focus decouples from any preselected goal
-            if (resolvedGoalId) setResolvedGoalId(null)
-          }}
-          placeholder="e.g. Finish thermodynamics ch. 1"
-          className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-base mb-10"
-        />
-
-        <DurationPicker value={duration} onChange={setDuration} />
-
-        <button
-          onClick={handleStart}
-          className="w-full bg-coral text-white font-sans font-medium text-base py-3 rounded-pill mt-10"
-        >
-          Start focus session
-        </button>
-      </div>
-
-      {/* ── Today's plan ─────────────────────────────────────────────────── */}
-      {todayGoals.length > 0 && (
-        <div className="bg-coral-light rounded-xl p-4 mb-8">
-          <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
-            Today&apos;s plan
-          </p>
-          <div className="flex flex-col gap-2">
-            {todayGoals.map((g) => (
-              <button
-                key={g.goal_id}
-                onClick={() => handleContinueGoal(g.goal_id)}
-                className="text-left font-sans text-sm font-medium text-text-primary"
-              >
-                {g.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Pick up where you left off ───────────────────────────────────── */}
-      {recentGoals.length > 0 && (
-        <div className="mb-8">
-          <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
-            Or pick up where you left off
-          </p>
-          <div className="flex flex-col gap-4">
-            {recentGoals.map((g, i) => (
-              <div key={g.goal_id} className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="font-sans text-sm font-medium text-text-primary truncate">
-                    {g.name}
-                  </p>
-                  <p className="font-sans text-xs text-text-muted mt-0.5">
-                    {formatDuration(g.total_minutes)} across {g.session_count}{' '}
-                    {g.session_count === 1 ? 'session' : 'sessions'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleContinueGoal(g.goal_id)}
-                  className={`shrink-0 px-4 py-2 rounded-pill font-sans text-sm font-medium ${
-                    i === 0
-                      ? 'bg-coral text-white'
-                      : 'border-[1.5px] border-coral text-coral'
-                  }`}
-                >
-                  Continue
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Nav ──────────────────────────────────────────────────────────── */}
-      <div className="flex gap-6 mt-8 pt-6 border-t border-border-warm">
+    <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-md mx-auto">
+      {/* ── Top nav ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-6 relative z-40">
         <button
           onClick={() => router.push('/goals')}
           className="font-sans text-sm text-text-muted"
@@ -196,17 +110,110 @@ function HomePageInner() {
           All goals
         </button>
         <button
-          onClick={() => router.push('/search')}
-          className="font-sans text-sm text-text-muted"
-        >
-          Search
-        </button>
-        <button
           onClick={() => router.push('/profile')}
           className="font-sans text-sm text-text-muted"
         >
           Profile
         </button>
+      </div>
+
+      {/* ── Date + search — search stays anchored here even when open ───── */}
+      <p className="font-sans text-sm text-text-muted mb-3 relative z-40">
+        {todayDate}
+      </p>
+
+      <div className="mb-8">
+        <SearchBar onOpenChange={setSearchOpen} />
+      </div>
+
+      {/* ── Everything below dims + blurs when search is open ──────────── */}
+      <div
+        className={`transition-[filter,opacity] duration-150 ${
+          searchOpen ? 'blur-sm opacity-40 pointer-events-none select-none' : ''
+        }`}
+      >
+        {/* Timer setup */}
+        <div className="mb-10">
+          <label className="block font-sans text-lg font-medium text-text-primary mb-1">
+            What are you focusing on?
+          </label>
+          <p className="text-sm text-text-muted mb-4">
+            Optional — you can skip this and add it after
+          </p>
+          <input
+            type="text"
+            value={focusText}
+            onChange={(e) => {
+              setFocusText(e.target.value)
+              if (resolvedGoalId) setResolvedGoalId(null)
+            }}
+            placeholder="e.g. Finish thermodynamics ch. 1"
+            className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-base mb-10"
+          />
+
+          <DurationPicker value={duration} onChange={setDuration} />
+
+          <button
+            onClick={handleStart}
+            className="w-full bg-coral text-white font-sans font-medium text-base py-3 rounded-pill mt-10"
+          >
+            Start focus session
+          </button>
+        </div>
+
+        {/* Today's plan */}
+        {todayGoals.length > 0 && (
+          <div className="bg-coral-light rounded-xl p-4 mb-8">
+            <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
+              Today&apos;s plan
+            </p>
+            <div className="flex flex-col gap-2">
+              {todayGoals.map((g) => (
+                <button
+                  key={g.goal_id}
+                  onClick={() => handleContinueGoal(g.goal_id)}
+                  className="text-left font-sans text-sm font-medium text-text-primary"
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pick up where you left off */}
+        {recentGoals.length > 0 && (
+          <div>
+            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
+              Or pick up where you left off
+            </p>
+            <div className="flex flex-col gap-4">
+              {recentGoals.map((g, i) => (
+                <div key={g.goal_id} className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-sans text-sm font-medium text-text-primary truncate">
+                      {g.name}
+                    </p>
+                    <p className="font-sans text-xs text-text-muted mt-0.5">
+                      {formatDuration(g.total_minutes)} across {g.session_count}{' '}
+                      {g.session_count === 1 ? 'session' : 'sessions'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleContinueGoal(g.goal_id)}
+                    className={`shrink-0 px-4 py-2 rounded-pill font-sans text-sm font-medium ${
+                      i === 0
+                        ? 'bg-coral text-white'
+                        : 'border-[1.5px] border-coral text-coral'
+                    }`}
+                  >
+                    Continue
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   )
