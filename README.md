@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Focus
 
-## Getting Started
+Personal focus-session tracker with anonymous auth. Set a timer, work, rate the session, tag distractions, build a visual history over time. Nothing is ever mandatory — everything optional is gently encouraged.
 
-First, run the development server:
+Built with Next.js (App Router) + Supabase (Postgres + anonymous auth).
+
+## Quick start
+
+Prereqs: Node 20+, a Supabase project.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/abhishekbelgaonkar-alt/focus.git
+cd focus
+npm install --legacy-peer-deps
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then fill in `.env.local` with values from **Supabase Dashboard → Settings → API**:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Supabase setup (one-time)
 
-## Learn More
+1. **Apply the migrations** — in Supabase Dashboard → SQL Editor, run each file in order:
+   - `supabase/migrations/20260907000000_initial_schema.sql` — tables + RLS + tag-seeding trigger
+   - `supabase/migrations/20260908000000_goal_stats_fn.sql` — aggregated goal stats RPC
+   - `supabase/migrations/20260908000001_delete_user_fn.sql` — account self-deletion RPC
 
-To learn more about Next.js, take a look at the following resources:
+2. **Enable Anonymous Sign-ins** — Dashboard → Authentication → Providers → Anonymous Sign-ins → toggle **Enable**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Run
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run dev        # http://localhost:3000
+npm run test:run   # 95 tests
+npm run build      # production build
+```
 
-## Deploy on Vercel
+## Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+├── app/          # Next.js routes (setup, timer, end, rate, goals, sessions, search, profile, settings)
+├── components/   # RatingForm, DurationPicker, RatingSlider, DistractionTags, WeekdayPicker, charts, etc.
+├── lib/          # timer math, session-state, format, stats, Supabase clients, types
+└── __tests__/    # Vitest suites
+docs/superpowers/plans/  # implementation plans (Plans 1–4)
+supabase/migrations/     # Postgres schema and RPC functions
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy
+
+```bash
+vercel
+```
+
+Set the two `NEXT_PUBLIC_SUPABASE_*` env vars in your Vercel project settings.
+
+## Spec
+
+See `spec.md` for the full product specification.

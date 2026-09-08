@@ -5,12 +5,20 @@ import { DistractionTags } from '@/components/DistractionTags'
 import { getNotePlaceholder } from '@/lib/timer'
 import type { DistractionTag } from '@/lib/types'
 
+export interface GoalOption {
+  id: string
+  name: string
+  type: 'goal' | 'category'
+}
+
 export interface RatingFormData {
   rating: number
   notes: string
   sessionName: string
   selectedTagIds: string[]
-  goalText: string
+  goalText: string          // used when creating a new goal
+  existingGoalId: string | null
+  existingCategoryId: string | null
 }
 
 interface RatingFormProps {
@@ -18,33 +26,39 @@ interface RatingFormProps {
   initialNotes?: string
   initialSessionName?: string
   initialSelectedTagIds?: string[]
-  initialGoalText?: string
   focusText?: string | null
   tags: DistractionTag[]
   onAddTag: (name: string) => Promise<void>
   onSave: (data: RatingFormData) => Promise<void>
   saving: boolean
   showGoalPrompt?: boolean
+  goalOptions?: GoalOption[]
 }
+
+type GoalMode = 'skip' | 'existing' | 'create'
 
 export function RatingForm({
   initialRating = 3.0,
   initialNotes = '',
   initialSessionName = '',
   initialSelectedTagIds = [],
-  initialGoalText = '',
   focusText,
   tags,
   onAddTag,
   onSave,
   saving,
   showGoalPrompt = false,
+  goalOptions = [],
 }: RatingFormProps) {
   const [rating, setRating] = useState(initialRating)
   const [notes, setNotes] = useState(initialNotes)
   const [sessionName, setSessionName] = useState(initialSessionName)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialSelectedTagIds)
-  const [goalText, setGoalText] = useState(initialGoalText)
+
+  // Goal-assignment state (only relevant when showGoalPrompt=true)
+  const [goalMode, setGoalMode] = useState<GoalMode>('skip')
+  const [selectedOptionKey, setSelectedOptionKey] = useState<string>('')  // "goal:<id>" or "category:<id>"
+  const [goalText, setGoalText] = useState('')
 
   const handleToggleTag = (tagId: string) => {
     setSelectedTagIds((prev) =>
@@ -52,8 +66,29 @@ export function RatingForm({
     )
   }
 
-  const handleSave = () =>
-    onSave({ rating, notes, sessionName, selectedTagIds, goalText })
+  const handleSave = () => {
+    let existingGoalId: string | null = null
+    let existingCategoryId: string | null = null
+    let finalGoalText = ''
+
+    if (showGoalPrompt && goalMode === 'existing' && selectedOptionKey) {
+      const [kind, id] = selectedOptionKey.split(':')
+      if (kind === 'goal') existingGoalId = id
+      else if (kind === 'category') existingCategoryId = id
+    } else if (showGoalPrompt && goalMode === 'create') {
+      finalGoalText = goalText
+    }
+
+    onSave({
+      rating,
+      notes,
+      sessionName,
+      selectedTagIds,
+      goalText: finalGoalText,
+      existingGoalId,
+      existingCategoryId,
+    })
+  }
 
   return (
     <main className="min-h-screen bg-cream px-6 pt-12 pb-24 max-w-md mx-auto">
@@ -103,17 +138,65 @@ export function RatingForm({
 
       {showGoalPrompt && (
         <div className="mb-8 border border-border-warm rounded-xl p-4">
-          <label className="block font-sans text-sm text-text-muted mb-1">
+          <label className="block font-sans text-sm text-text-muted mb-3">
             What was this session for?{' '}
             <span className="text-text-light">(optional)</span>
           </label>
-          <input
-            type="text"
-            value={goalText}
-            onChange={(e) => setGoalText(e.target.value)}
-            placeholder="Name a goal or category"
-            className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
-          />
+
+          {/* Mode picker — Skip / Pick existing / Create new */}
+          <div className="flex gap-2 mb-3 flex-wrap">
+            {([
+              { key: 'skip', label: 'Skip' },
+              ...(goalOptions.length > 0 ? [{ key: 'existing' as const, label: 'Pick existing' }] : []),
+              { key: 'create', label: 'Create new' },
+            ] as { key: GoalMode; label: string }[]).map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setGoalMode(opt.key)}
+                className={`px-3 py-1.5 rounded-pill text-xs font-sans border-[1.5px] ${
+                  goalMode === opt.key
+                    ? 'bg-coral-light border-coral text-tag-text'
+                    : 'bg-transparent border-border-warm text-text-muted'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {goalMode === 'existing' && (
+            <select
+              value={selectedOptionKey}
+              onChange={(e) => setSelectedOptionKey(e.target.value)}
+              className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
+            >
+              <option value="">Choose one…</option>
+              {goalOptions
+                .filter((o) => o.type === 'goal')
+                .map((o) => (
+                  <option key={`goal:${o.id}`} value={`goal:${o.id}`}>
+                    {o.name}
+                  </option>
+                ))}
+              {goalOptions
+                .filter((o) => o.type === 'category')
+                .map((o) => (
+                  <option key={`category:${o.id}`} value={`category:${o.id}`}>
+                    {o.name} (category)
+                  </option>
+                ))}
+            </select>
+          )}
+
+          {goalMode === 'create' && (
+            <input
+              type="text"
+              value={goalText}
+              onChange={(e) => setGoalText(e.target.value)}
+              placeholder="Name a new goal"
+              className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
+            />
+          )}
         </div>
       )}
 

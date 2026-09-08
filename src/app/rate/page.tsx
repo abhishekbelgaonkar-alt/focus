@@ -7,13 +7,14 @@ import { RatingForm } from '@/components/RatingForm'
 import { AccountNudge } from '@/components/AccountNudge'
 import type { InProgressSession } from '@/lib/session-state'
 import type { DistractionTag } from '@/lib/types'
-import type { RatingFormData } from '@/components/RatingForm'
+import type { RatingFormData, GoalOption } from '@/components/RatingForm'
 
 export default function RatePage() {
   const router = useRouter()
   const supabase = createClient()
   const [session, setSession] = useState<InProgressSession | null>(null)
   const [tags, setTags] = useState<DistractionTag[]>([])
+  const [goalOptions, setGoalOptions] = useState<GoalOption[]>([])
   const [saving, setSaving] = useState(false)
   const [savedCount, setSavedCount] = useState<number | null>(null)
 
@@ -22,13 +23,19 @@ export default function RatePage() {
     if (!s) { router.replace('/setup'); return }
     setSession(s)
 
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return
-      supabase
-        .from('distraction_tags')
-        .select('*')
-        .order('created_at')
-        .then(({ data: t }) => setTags(t ?? []))
+      const [{ data: t }, { data: g }, { data: c }] = await Promise.all([
+        supabase.from('distraction_tags').select('*').order('created_at'),
+        supabase.from('goals').select('id, name').eq('user_id', data.user.id).order('name'),
+        supabase.from('categories').select('id, name').eq('user_id', data.user.id).order('name'),
+      ])
+      setTags((t ?? []) as DistractionTag[])
+      const opts: GoalOption[] = [
+        ...((g ?? []) as { id: string; name: string }[]).map((x) => ({ ...x, type: 'goal' as const })),
+        ...((c ?? []) as { id: string; name: string }[]).map((x) => ({ ...x, type: 'category' as const })),
+      ]
+      setGoalOptions(opts)
     })
   }, [])
 
@@ -50,8 +57,10 @@ export default function RatePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
 
-    let goalId = session.goalId
-    let categoryId = session.categoryId
+    let goalId = session.goalId ?? form.existingGoalId
+    let categoryId = session.categoryId ?? form.existingCategoryId
+
+    // Create new goal if user chose "Create new" and typed a name
     if (!goalId && !categoryId && form.goalText.trim()) {
       const { data: newGoal } = await supabase
         .from('goals')
@@ -122,6 +131,7 @@ export default function RatePage() {
         onSave={handleSave}
         saving={saving}
         showGoalPrompt={!session.goalId && !session.categoryId}
+        goalOptions={goalOptions}
       />
       {savedCount !== null && (
         <AccountNudge
