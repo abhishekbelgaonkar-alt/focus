@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
+import { SessionRow } from '@/components/SessionRow'
 import { saveSession } from '@/lib/session-state'
 import { formatDuration } from '@/lib/format'
 import type { Weekday } from '@/lib/types'
@@ -32,6 +33,9 @@ function HomePageInner() {
   const [loading, setLoading] = useState(true)
   const [goalStats, setGoalStats] = useState<GoalStat[]>([])
   const [todayGoals, setTodayGoals] = useState<GoalStat[]>([])
+  const [recentSessions, setRecentSessions] = useState<
+    { id: string; session_name: string | null; started_at: string; actual_duration_minutes: number; rating: number | null }[]
+  >([])
   const [searchOpen, setSearchOpen] = useState(false)
 
   // Timer setup state — lives on the home screen.
@@ -45,9 +49,20 @@ function HomePageInner() {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
 
-        const { data: stats } = await supabase.rpc('get_goal_stats')
+        const [{ data: stats }, { data: recent }] = await Promise.all([
+          supabase.rpc('get_goal_stats'),
+          supabase
+            .from('sessions')
+            .select('id, session_name, started_at, actual_duration_minutes, rating')
+            .eq('user_id', data.user.id)
+            .order('started_at', { ascending: false })
+            .limit(5),
+        ])
         const all = (stats ?? []) as GoalStat[]
         setGoalStats(all)
+        setRecentSessions(
+          (recent ?? []) as { id: string; session_name: string | null; started_at: string; actual_duration_minutes: number; rating: number | null }[]
+        )
 
         const today = WEEKDAYS[new Date().getDay()]
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
@@ -84,6 +99,7 @@ function HomePageInner() {
       categoryId: null,
       endReason: null,
       actualDurationMinutes: null,
+      isExpired: false,
     })
     router.push('/timer')
   }
@@ -210,6 +226,28 @@ function HomePageInner() {
                     Continue
                   </button>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent sessions — includes uncategorized/orphan saves so they're findable */}
+        {recentSessions.length > 0 && (
+          <div className="mt-10">
+            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
+              Recent sessions
+            </p>
+            <div>
+              {recentSessions.map((s) => (
+                <SessionRow
+                  key={s.id}
+                  id={s.id}
+                  sessionName={s.session_name}
+                  startedAt={s.started_at}
+                  actualDurationMinutes={s.actual_duration_minutes}
+                  rating={s.rating}
+                  onClick={() => router.push(`/sessions/${s.id}`)}
+                />
               ))}
             </div>
           </div>

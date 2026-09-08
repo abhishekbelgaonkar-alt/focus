@@ -33,6 +33,8 @@ interface RatingFormProps {
   saving: boolean
   showGoalPrompt?: boolean
   goalOptions?: GoalOption[]
+  header?: React.ReactNode         // renders below focusText, above rating
+  saveDisabled?: boolean           // gate save until required upstream state is set
 }
 
 type GoalMode = 'skip' | 'existing' | 'create'
@@ -49,6 +51,8 @@ export function RatingForm({
   saving,
   showGoalPrompt = false,
   goalOptions = [],
+  header,
+  saveDisabled = false,
 }: RatingFormProps) {
   const [rating, setRating] = useState(initialRating)
   const [notes, setNotes] = useState(initialNotes)
@@ -93,8 +97,10 @@ export function RatingForm({
   return (
     <main className="min-h-screen bg-cream px-6 pt-12 pb-24 max-w-md mx-auto">
       {focusText && (
-        <p className="font-sans text-base text-text-muted mb-8">{focusText}</p>
+        <p className="font-sans text-base text-text-muted mb-2">{focusText}</p>
       )}
+
+      {header && <div className="mb-8">{header}</div>}
 
       <div className="mb-10">
         <RatingSlider value={rating} onChange={setRating} />
@@ -202,7 +208,7 @@ export function RatingForm({
 
       <button
         onClick={handleSave}
-        disabled={saving}
+        disabled={saving || saveDisabled}
         className="w-full bg-coral text-white font-sans font-medium py-3 rounded-pill disabled:opacity-50 transition-opacity"
       >
         {saving ? 'Saving…' : 'Save session'}

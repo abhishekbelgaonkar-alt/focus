@@ -98,14 +98,21 @@ export default function TimerPage() {
     if (!timer || !session) return
     const expired = isTimerExpired(timer.startedAt, timer.plannedMs, timer.totalPausedMs)
 
+    // Rounded elapsed minutes (paused time excluded), floor 1. If Done was hit
+    // AFTER the timer expired, we leave actualDurationMinutes null and let the
+    // branch question on /rate decide the final duration.
+    const elapsedMs = Date.now() - timer.startedAt - timer.totalPausedMs
+    const actualMinutes = Math.max(1, Math.round(elapsedMs / 60000))
+
     saveSession({
       ...session,
+      isExpired: expired,
       endReason: expired ? null : 'on_time',
-      actualDurationMinutes: expired ? null : session.plannedDurationMinutes,
+      actualDurationMinutes: expired ? null : actualMinutes,
     })
     clearTimerState()
 
-    router.push(expired ? '/end' : '/rate')
+    router.push('/rate')
   }
 
   if (!session || !timer) return null

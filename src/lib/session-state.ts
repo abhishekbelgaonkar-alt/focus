@@ -6,8 +6,9 @@ export interface InProgressSession {
   setupFocusText: string | null
   goalId: string | null
   categoryId: string | null
-  endReason: EndReason | null  // set by /end screen
-  actualDurationMinutes: number | null // set by /end screen (still_focused path)
+  endReason: EndReason | null   // set by branch question on /rate when isExpired
+  actualDurationMinutes: number | null  // elapsed at Done (rounded, min 1); null if expired
+  isExpired: boolean            // true if planned duration passed before Done was clicked
 }
 
 const KEY = 'focus_in_progress'

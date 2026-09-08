@@ -43,6 +43,7 @@ function SetupPageInner() {
       categoryId: null,
       endReason: null,
       actualDurationMinutes: null,
+      isExpired: false,
     })
     router.push('/timer')
   }
