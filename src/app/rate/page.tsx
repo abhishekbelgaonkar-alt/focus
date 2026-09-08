@@ -102,7 +102,8 @@ export default function RatePage() {
     clearSession()
 
     const c = count ?? 0
-    if (c === 1 || c % 5 === 0) {
+    const nudgeEnabled = localStorage.getItem('focus_nudge_enabled') !== 'false'
+    if (nudgeEnabled && (c === 1 || c % 5 === 0)) {
       setSavedCount(c)
     } else {
       router.push('/')
