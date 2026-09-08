@@ -123,9 +123,75 @@ export default function TimerPage() {
         </>
       )}
 
-      <div className="font-numbers text-8xl font-semibold text-text-primary mb-16 tabular-nums">
-        {formatTime(displayMs)}
-      </div>
+      {/* Circular scale + numeric countdown centered inside.
+          60 tiny ticks (every 6°), 12 medium (every 30°), 4 tall at
+          cardinal points — three tiers to match the ruler slider.
+          A dimmer coral marker rotates clockwise from 12 o'clock as time
+          depletes; it completes one full revolution when the timer expires. */}
+      {(() => {
+        const SIZE = 300
+        const CENTER = SIZE / 2
+        const R_OUTER = 138
+        const elapsedFraction = 1 - displayMs / timer.plannedMs
+        const markerAngle = Math.min(360, Math.max(0, elapsedFraction * 360))
+
+        const ticks = []
+        for (let i = 0; i < 60; i++) {
+          const angleDeg = i * 6
+          const isTall = i % 15 === 0
+          const isMedium = !isTall && i % 5 === 0
+          const len = isTall ? 14 : isMedium ? 9 : 5
+          const stroke = isTall || isMedium ? '#b08c6a' : '#c9b79c'
+          const width = isTall ? 1.5 : 1
+          ticks.push({ angleDeg, len, stroke, width })
+        }
+
+        return (
+          <div
+            className="relative mb-16"
+            style={{ width: SIZE, height: SIZE }}
+          >
+            <svg
+              className="absolute inset-0"
+              width={SIZE}
+              height={SIZE}
+              viewBox={`0 0 ${SIZE} ${SIZE}`}
+              aria-hidden="true"
+            >
+              {ticks.map((t) => (
+                <line
+                  key={t.angleDeg}
+                  x1={CENTER}
+                  y1={CENTER - R_OUTER}
+                  x2={CENTER}
+                  y2={CENTER - R_OUTER + t.len}
+                  stroke={t.stroke}
+                  strokeWidth={t.width}
+                  transform={`rotate(${t.angleDeg} ${CENTER} ${CENTER})`}
+                />
+              ))}
+              {/* Rotating marker — thin vertical coral bar at 12 o'clock, rotated by elapsed angle */}
+              <rect
+                x={CENTER - 2}
+                y={CENTER - R_OUTER - 4}
+                width={4}
+                height={22}
+                rx={1.5}
+                fill="#e8905a"
+                transform={`rotate(${markerAngle} ${CENTER} ${CENTER})`}
+                style={{ transition: isPaused ? 'none' : 'transform 100ms linear' }}
+              />
+            </svg>
+
+            {/* Numeric countdown centered inside the ring */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-numbers text-7xl font-semibold text-text-primary tabular-nums">
+                {formatTime(displayMs)}
+              </span>
+            </div>
+          </div>
+        )
+      })()}
 
       <div className="flex gap-4 w-full max-w-xs">
         {isPaused ? (
