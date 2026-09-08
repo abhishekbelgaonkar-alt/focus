@@ -145,6 +145,30 @@ export default function RatePage() {
       )
     }
 
+    // Persist sub-tasks entered at setup + their check-off durations.
+    if (session.tasks.length > 0) {
+      // Derive per-task duration from elapsedSecondsAtCompletion sequence.
+      const completedSorted = [...session.tasks]
+        .filter((t) => t.completedAt !== null && t.elapsedSecondsAtCompletion !== null)
+        .sort((a, b) => (a.elapsedSecondsAtCompletion ?? 0) - (b.elapsedSecondsAtCompletion ?? 0))
+      const durationById = new Map<string, number>()
+      let prev = 0
+      for (const t of completedSorted) {
+        durationById.set(t.id, Math.max(0, (t.elapsedSecondsAtCompletion ?? 0) - prev))
+        prev = t.elapsedSecondsAtCompletion ?? prev
+      }
+
+      await supabase.from('session_tasks').insert(
+        session.tasks.map((t) => ({
+          session_id: saved.id,
+          name: t.name,
+          position: t.position,
+          completed_at: t.completedAt,
+          duration_seconds: durationById.get(t.id) ?? null,
+        }))
+      )
+    }
+
     if (goalId) {
       await supabase
         .from('goals')

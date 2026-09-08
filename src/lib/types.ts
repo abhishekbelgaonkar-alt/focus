@@ -43,6 +43,16 @@ export interface DistractionTag {
   created_at: string
 }
 
+export interface SessionTask {
+  id: string
+  session_id: string
+  name: string
+  position: number
+  completed_at: string | null
+  duration_seconds: number | null
+  created_at: string
+}
+
 export interface PeriodNote {
   id: string
   user_id: string

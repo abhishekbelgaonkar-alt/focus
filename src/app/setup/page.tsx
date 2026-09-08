@@ -44,6 +44,7 @@ function SetupPageInner() {
       endReason: null,
       actualDurationMinutes: null,
       isExpired: false,
+      tasks: [],
     })
     router.push('/timer')
   }

@@ -9,6 +9,14 @@ interface TagRow {
   distraction_tags: { id: string; name: string }
 }
 
+interface TaskRow {
+  id: string
+  name: string
+  position: number
+  completed_at: string | null
+  duration_seconds: number | null
+}
+
 interface SessionDetail {
   id: string
   session_name: string | null
@@ -19,6 +27,7 @@ interface SessionDetail {
   goals: { name: string } | null
   categories: { name: string } | null
   session_distraction_tags: TagRow[]
+  session_tasks: TaskRow[]
 }
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,12 +49,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         notes,
         goals(name),
         categories(name),
-        session_distraction_tags(distraction_tags(id, name))
+        session_distraction_tags(distraction_tags(id, name)),
+        session_tasks(id, name, position, completed_at, duration_seconds)
       `)
       .eq('id', sessionId)
+      .order('position', { foreignTable: 'session_tasks', ascending: true })
       .single()
       .then(({ data }) => {
-        setSession(data as SessionDetail | null)
+        setSession(data as unknown as SessionDetail | null)
         setLoading(false)
       })
   }, [sessionId])
@@ -109,6 +120,79 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       )}
+
+      {session.session_tasks && session.session_tasks.length > 0 && (() => {
+        const fmtDur = (sec: number | null) => {
+          if (sec === null) return null
+          if (sec < 60) return `${sec}s`
+          const m = Math.floor(sec / 60)
+          const s = sec % 60
+          return s === 0 ? `${m}m` : `${m}m ${s}s`
+        }
+        const done = session.session_tasks.filter((t) => t.completed_at)
+        const unfinished = session.session_tasks.filter((t) => !t.completed_at)
+        return (
+          <div className="mb-8">
+            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-3">
+              Tasks {done.length > 0 && (
+                <span className="text-text-light normal-case tracking-normal">
+                  · {done.length} of {session.session_tasks.length} finished
+                </span>
+              )}
+            </p>
+            <ul>
+              {session.session_tasks.map((t) => {
+                const isDone = t.completed_at !== null
+                return (
+                  <li
+                    key={t.id}
+                    className="flex items-center gap-3 py-2 border-b border-border-warm last:border-0"
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full border-[1.5px] shrink-0 flex items-center justify-center ${
+                        isDone ? 'bg-coral border-coral' : 'border-border-warm bg-transparent'
+                      }`}
+                    >
+                      {isDone && (
+                        <svg width="8" height="8" viewBox="0 0 10 10" aria-hidden="true">
+                          <path
+                            d="M1.5 5.5 L4 8 L8.5 2.5"
+                            stroke="white"
+                            strokeWidth="1.75"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <span
+                      className={`flex-1 font-sans text-sm ${
+                        isDone ? 'text-text-muted line-through' : 'text-text-primary'
+                      }`}
+                    >
+                      {t.name}
+                    </span>
+                    {isDone ? (
+                      <span className="font-numbers text-xs text-text-muted shrink-0">
+                        {fmtDur(t.duration_seconds) ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="font-sans text-xs text-text-light shrink-0">unfinished</span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+            {/* Redundant summary; harmless if empty */}
+            {unfinished.length > 0 && done.length > 0 && (
+              <p className="font-sans text-xs text-text-muted mt-3">
+                {unfinished.length} left unfinished.
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       {session.notes && (
         <div className="mb-8">

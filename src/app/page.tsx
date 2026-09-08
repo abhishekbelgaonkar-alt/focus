@@ -42,6 +42,18 @@ function HomePageInner() {
   const [duration, setDuration] = useState(DEFAULT_DURATION)
   const [focusText, setFocusText] = useState('')
   const [resolvedGoalId, setResolvedGoalId] = useState<string | null>(null)
+  const [taskDrafts, setTaskDrafts] = useState<{ id: string; name: string }[]>([])
+  const [taskInput, setTaskInput] = useState('')
+
+  const addTask = () => {
+    const name = taskInput.trim()
+    if (!name) return
+    setTaskDrafts((prev) => [...prev, { id: crypto.randomUUID(), name }])
+    setTaskInput('')
+  }
+  const removeTask = (id: string) => {
+    setTaskDrafts((prev) => prev.filter((t) => t.id !== id))
+  }
 
   useEffect(() => {
     (async () => {
@@ -100,6 +112,13 @@ function HomePageInner() {
       endReason: null,
       actualDurationMinutes: null,
       isExpired: false,
+      tasks: taskDrafts.map((t, i) => ({
+        id: t.id,
+        name: t.name,
+        position: i,
+        completedAt: null,
+        elapsedSecondsAtCompletion: null,
+      })),
     })
     router.push('/timer')
   }
@@ -164,8 +183,43 @@ function HomePageInner() {
               if (resolvedGoalId) setResolvedGoalId(null)
             }}
             placeholder="e.g. Finish thermodynamics ch. 1"
-            className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-base mb-10"
+            className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-base mb-8"
           />
+
+          {/* Optional tasks — checked off during the timer */}
+          <div className="mb-8">
+            <label className="block font-sans text-sm text-text-muted mb-3">
+              Tasks <span className="text-text-light">(optional)</span>
+            </label>
+            {taskDrafts.length > 0 && (
+              <ol className="flex flex-col mb-3">
+                {taskDrafts.map((t, i) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center gap-3 py-1.5 border-b border-border-warm last:border-0"
+                  >
+                    <span className="font-numbers text-xs text-text-light w-4">{i + 1}</span>
+                    <span className="flex-1 font-sans text-sm text-text-primary">{t.name}</span>
+                    <button
+                      onClick={() => removeTask(t.id)}
+                      className="font-sans text-lg text-text-light leading-none"
+                      aria-label={`Remove ${t.name}`}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <input
+              type="text"
+              value={taskInput}
+              onChange={(e) => setTaskInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTask())}
+              placeholder={taskDrafts.length === 0 ? 'e.g. Paper 1' : 'Add another task'}
+              className="w-full bg-transparent border-b border-border-warm pb-1 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-sm"
+            />
+          </div>
 
           <DurationPicker value={duration} onChange={setDuration} />
 

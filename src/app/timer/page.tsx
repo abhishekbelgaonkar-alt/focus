@@ -94,6 +94,35 @@ export default function TimerPage() {
     })
   }
 
+  // Compute duration a newly-checked task should record.
+  // = current session elapsed - sum of already-completed tasks' elapsed values
+  const toggleTask = (taskId: string) => {
+    if (!session || !timer) return
+    const now = timer.pausedAt ?? Date.now()
+    const elapsedSec = Math.max(
+      0,
+      Math.round((now - timer.startedAt - timer.totalPausedMs) / 1000)
+    )
+
+    const nextTasks = session.tasks.map((t) => {
+      if (t.id !== taskId) return t
+      if (t.completedAt) {
+        // Uncheck — clear completion. Later-completed tasks keep their own
+        // recorded values; those durations were correct at check time.
+        return { ...t, completedAt: null, elapsedSecondsAtCompletion: null }
+      }
+      return {
+        ...t,
+        completedAt: new Date().toISOString(),
+        elapsedSecondsAtCompletion: elapsedSec,
+      }
+    })
+
+    const nextSession = { ...session, tasks: nextTasks }
+    setSession(nextSession)
+    saveSession(nextSession)
+  }
+
   const handleDone = () => {
     if (!timer || !session) return
     const expired = isTimerExpired(timer.startedAt, timer.plannedMs, timer.totalPausedMs)
@@ -120,7 +149,11 @@ export default function TimerPage() {
   const isPaused = timer.pausedAt !== null
 
   return (
-    <main className="min-h-screen bg-cream flex flex-col items-center justify-center px-6">
+    <main
+      className={`min-h-screen bg-cream flex flex-col items-center px-6 ${
+        session.tasks.length > 0 ? 'pt-12 pb-16' : 'justify-center'
+      }`}
+    >
       {session.setupFocusText && (
         <>
           <p className="text-sm text-text-muted mb-2 font-sans">Today, you're working on</p>
@@ -223,6 +256,81 @@ export default function TimerPage() {
           I'm done
         </button>
       </div>
+
+      {/* Task list — check off as you complete each; duration recorded per task */}
+      {session.tasks.length > 0 && (() => {
+        const sortedCompleted = [...session.tasks]
+          .filter((t) => t.completedAt !== null && t.elapsedSecondsAtCompletion !== null)
+          .sort((a, b) => (a.elapsedSecondsAtCompletion ?? 0) - (b.elapsedSecondsAtCompletion ?? 0))
+
+        // Per-task duration = its elapsed - previous completed task's elapsed
+        const durationById = new Map<string, number>()
+        let prev = 0
+        for (const t of sortedCompleted) {
+          durationById.set(t.id, Math.max(0, (t.elapsedSecondsAtCompletion ?? 0) - prev))
+          prev = t.elapsedSecondsAtCompletion ?? prev
+        }
+
+        const fmtDur = (sec: number) => {
+          if (sec < 60) return `${sec}s`
+          const m = Math.floor(sec / 60)
+          const s = sec % 60
+          return s === 0 ? `${m}m` : `${m}m ${s}s`
+        }
+
+        return (
+          <div className="w-full max-w-sm mt-12">
+            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-3">
+              Tasks
+            </p>
+            <ul>
+              {session.tasks.map((t) => {
+                const done = t.completedAt !== null
+                const dur = durationById.get(t.id)
+                return (
+                  <li
+                    key={t.id}
+                    className="flex items-center gap-3 py-2.5 border-b border-border-warm last:border-0"
+                  >
+                    <button
+                      onClick={() => toggleTask(t.id)}
+                      aria-label={done ? `Uncheck ${t.name}` : `Check off ${t.name}`}
+                      className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors ${
+                        done ? 'bg-coral border-coral' : 'border-border-warm bg-transparent'
+                      }`}
+                    >
+                      {done && (
+                        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                          <path
+                            d="M1.5 5.5 L4 8 L8.5 2.5"
+                            stroke="white"
+                            strokeWidth="1.75"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    <span
+                      className={`flex-1 font-sans text-sm ${
+                        done ? 'text-text-muted line-through' : 'text-text-primary'
+                      }`}
+                    >
+                      {t.name}
+                    </span>
+                    {done && dur !== undefined && (
+                      <span className="font-numbers text-xs text-text-muted shrink-0">
+                        {fmtDur(dur)}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )
+      })()}
     </main>
   )
 }
