@@ -18,6 +18,7 @@ export interface InProgressSession {
   actualDurationMinutes: number | null  // elapsed at Done (rounded, min 1); null if expired
   isExpired: boolean            // true if planned duration passed before Done was clicked
   tasks: InProgressTask[]       // optional sub-tasks entered at setup, checked during timer
+  existingSessionId: string | null   // set when resuming a saved-for-later session
 }
 
 const KEY = 'focus_in_progress'

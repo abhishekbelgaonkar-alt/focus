@@ -54,6 +54,7 @@ function SetupPageInner() {
       actualDurationMinutes: null,
       isExpired: false,
       tasks: [],
+      existingSessionId: null,
     })
     router.push('/timer')
   }

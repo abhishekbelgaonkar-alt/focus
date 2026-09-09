@@ -151,40 +151,69 @@ export default function RatePage() {
         ? Math.round(aggregateRating * 10) / 10
         : form.rating
 
-    const { data: saved, error } = await supabase
-      .from('sessions')
-      .insert({
-        user_id: user.id,
-        goal_id: goalId,
-        category_id: categoryId,
-        session_name: finalSessionName,
-        planned_duration_minutes: session.plannedDurationMinutes,
-        actual_duration_minutes: finalActual,
-        started_at: session.startedAt,
-        ended_at: new Date().toISOString(),
-        rating: finalRating,
-        notes: form.notes.trim() || null,
-        end_reason: finalEndReason,
-      })
-      .select()
-      .single()
+    const sessionPayload = {
+      user_id: user.id,
+      goal_id: goalId,
+      category_id: categoryId,
+      session_name: finalSessionName,
+      planned_duration_minutes: session.plannedDurationMinutes,
+      actual_duration_minutes: finalActual,
+      started_at: session.startedAt,
+      ended_at: new Date().toISOString(),
+      rating: finalRating,
+      notes: form.notes.trim() || null,
+      end_reason: finalEndReason,
+      status: 'completed',
+      elapsed_seconds: null,
+    }
 
-    if (error || !saved) {
-      console.error('[save] session insert failed', error)
-      setErrorMsg(`Couldn't save session: ${error?.message ?? 'unknown error'}`)
-      setSaving(false)
-      return
+    // If this session was previously saved-for-later, UPDATE that row instead
+    // of inserting a new one so the row's id (and any references) stay stable.
+    let savedId: string | null
+    if (session.existingSessionId) {
+      const { data: updated, error: updErr } = await supabase
+        .from('sessions')
+        .update(sessionPayload)
+        .eq('id', session.existingSessionId)
+        .select('id')
+        .single()
+      if (updErr || !updated) {
+        console.error('[save] session update failed', updErr)
+        setErrorMsg(`Couldn't save session: ${updErr?.message ?? 'unknown error'}`)
+        setSaving(false)
+        return
+      }
+      savedId = updated.id
+    } else {
+      const { data: inserted, error: insErr } = await supabase
+        .from('sessions')
+        .insert(sessionPayload)
+        .select('id')
+        .single()
+      if (insErr || !inserted) {
+        console.error('[save] session insert failed', insErr)
+        setErrorMsg(`Couldn't save session: ${insErr?.message ?? 'unknown error'}`)
+        setSaving(false)
+        return
+      }
+      savedId = inserted.id
+    }
+
+    // For updates we need to clear any prior tag/task rows for this session
+    // before re-inserting the current state.
+    if (session.existingSessionId) {
+      await supabase.from('session_distraction_tags').delete().eq('session_id', savedId)
+      await supabase.from('session_tasks').delete().eq('session_id', savedId)
     }
 
     if (form.selectedTagIds.length > 0) {
       await supabase.from('session_distraction_tags').insert(
-        form.selectedTagIds.map((tag_id) => ({ session_id: saved.id, tag_id }))
+        form.selectedTagIds.map((tag_id) => ({ session_id: savedId, tag_id }))
       )
     }
 
     // Persist sub-tasks entered at setup + their check-off durations.
     if (session.tasks.length > 0) {
-      // Derive per-task duration from elapsedSecondsAtCompletion sequence.
       const completedSorted = [...session.tasks]
         .filter((t) => t.completedAt !== null && t.elapsedSecondsAtCompletion !== null)
         .sort((a, b) => (a.elapsedSecondsAtCompletion ?? 0) - (b.elapsedSecondsAtCompletion ?? 0))
@@ -197,7 +226,7 @@ export default function RatePage() {
 
       await supabase.from('session_tasks').insert(
         session.tasks.map((t) => ({
-          session_id: saved.id,
+          session_id: savedId,
           name: t.name,
           position: t.position,
           completed_at: t.completedAt,

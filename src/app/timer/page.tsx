@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { loadSession, saveSession } from '@/lib/session-state'
+import { loadSession, saveSession, clearSession } from '@/lib/session-state'
 import { getRemainingMs, formatTime, isTimerExpired } from '@/lib/timer'
+import { createClient } from '@/lib/supabase/client'
 import type { InProgressSession } from '@/lib/session-state'
 
 interface TimerState {
@@ -29,9 +30,11 @@ function clearTimerState(): void {
 
 export default function TimerPage() {
   const router = useRouter()
+  const supabase = createClient()
   const [session, setSession] = useState<InProgressSession | null>(null)
   const [timer, setTimer] = useState<TimerState | null>(null)
   const [displayMs, setDisplayMs] = useState(0)
+  const [savingLater, setSavingLater] = useState(false)
   const rafRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -92,6 +95,98 @@ export default function TimerPage() {
       saveTimerState(next)
       return next
     })
+  }
+
+  // Extend the timer's planned duration mid-session. Applied to both the
+  // browser timer state (so the countdown re-renders) and the session state
+  // (so it's persisted correctly on save or save-for-later).
+  const handleAddTime = (minutes: number) => {
+    if (!session || !timer) return
+    const nextSession = {
+      ...session,
+      plannedDurationMinutes: session.plannedDurationMinutes + minutes,
+    }
+    const nextTimer = {
+      ...timer,
+      plannedMs: timer.plannedMs + minutes * 60 * 1000,
+    }
+    setSession(nextSession)
+    setTimer(nextTimer)
+    saveSession(nextSession)
+    saveTimerState(nextTimer)
+  }
+
+  // Persist the session as in_progress and clear browser state so the user
+  // can resume from any device. If a DB row already exists (resumed session),
+  // UPDATE it; otherwise INSERT a new row with status='in_progress'.
+  const handleSaveForLater = async () => {
+    if (!session || !timer || savingLater) return
+    setSavingLater(true)
+
+    const now = timer.pausedAt ?? Date.now()
+    const elapsedSec = Math.max(
+      0,
+      Math.round((now - timer.startedAt - timer.totalPausedMs) / 1000)
+    )
+
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData?.user) { setSavingLater(false); return }
+
+    let sessionRowId: string | null = session.existingSessionId
+
+    // Auto-derive a name from tasks if the user gave none — matches /rate.
+    const derivedName =
+      session.setupFocusText ??
+      (session.tasks.length > 0
+        ? session.tasks.slice().sort((a, b) => a.position - b.position).map((t) => t.name).join(', ')
+        : null)
+
+    const rowPayload = {
+      user_id: userData.user.id,
+      goal_id: session.goalId,
+      category_id: session.categoryId,
+      session_name: derivedName,
+      planned_duration_minutes: session.plannedDurationMinutes,
+      actual_duration_minutes: null,
+      started_at: session.startedAt,
+      ended_at: null,
+      rating: null,
+      notes: null,
+      end_reason: null,
+      status: 'in_progress',
+      elapsed_seconds: elapsedSec,
+    }
+
+    if (sessionRowId) {
+      await supabase.from('sessions').update(rowPayload).eq('id', sessionRowId)
+    } else {
+      const { data: saved } = await supabase
+        .from('sessions')
+        .insert(rowPayload)
+        .select('id')
+        .single()
+      sessionRowId = saved?.id ?? null
+    }
+
+    // Replace task rows so the current check-off state persists.
+    if (sessionRowId) {
+      await supabase.from('session_tasks').delete().eq('session_id', sessionRowId)
+      if (session.tasks.length > 0) {
+        await supabase.from('session_tasks').insert(
+          session.tasks.map((t) => ({
+            session_id: sessionRowId,
+            name: t.name,
+            position: t.position,
+            completed_at: t.completedAt,
+            duration_seconds: null,   // final duration only computed on conclude
+          }))
+        )
+      }
+    }
+
+    clearSession()
+    clearTimerState()
+    router.push('/')
   }
 
   // Compute duration a newly-checked task should record.
@@ -254,6 +349,23 @@ export default function TimerPage() {
           className="flex-1 bg-coral text-white font-sans font-medium py-3 rounded-pill"
         >
           I'm done
+        </button>
+      </div>
+
+      {/* Secondary actions — extend timer or save for later */}
+      <div className="flex justify-between items-center gap-4 w-full max-w-xs mt-4">
+        <button
+          onClick={() => handleAddTime(15)}
+          className="font-sans text-xs text-text-muted"
+        >
+          + 15 min
+        </button>
+        <button
+          onClick={handleSaveForLater}
+          disabled={savingLater}
+          className="font-sans text-xs text-text-muted disabled:opacity-50"
+        >
+          {savingLater ? 'Saving…' : 'Save & continue later'}
         </button>
       </div>
 

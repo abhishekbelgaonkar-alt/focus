@@ -72,6 +72,19 @@ function HomePageInner() {
       session_tasks: { id: string }[]
     }>
   >([])
+  const [inProgressSessions, setInProgressSessions] = useState<
+    Array<{
+      id: string
+      session_name: string | null
+      started_at: string
+      planned_duration_minutes: number
+      elapsed_seconds: number | null
+      goal_id: string | null
+      category_id: string | null
+      goals: { name: string } | null
+    }>
+  >([])
+  const [incompleteTaskCount, setIncompleteTaskCount] = useState(0)
   const [searchOpen, setSearchOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
 
@@ -117,7 +130,7 @@ function HomePageInner() {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
 
-        const [{ data: stats }, recentQuery] = await Promise.all([
+        const [{ data: stats }, recentQuery, inProgressQuery] = await Promise.all([
           supabase.rpc('get_goal_stats'),
           // Single query gets both the last 5 sessions AND the total count.
           supabase
@@ -127,8 +140,18 @@ function HomePageInner() {
               { count: 'exact' }
             )
             .eq('user_id', data.user.id)
+            .eq('status', 'completed')
             .order('started_at', { ascending: false })
             .limit(5),
+          // Paused / saved-for-later sessions
+          supabase
+            .from('sessions')
+            .select(
+              'id, session_name, started_at, planned_duration_minutes, elapsed_seconds, goal_id, category_id, goals(name)'
+            )
+            .eq('user_id', data.user.id)
+            .eq('status', 'in_progress')
+            .order('created_at', { ascending: false }),
         ])
         const all = (stats ?? []) as GoalStat[]
         setGoalStats(all)
@@ -136,6 +159,18 @@ function HomePageInner() {
         setRecentSessions(
           (recentQuery.data ?? []) as unknown as typeof recentSessions
         )
+        setInProgressSessions(
+          (inProgressQuery.data ?? []) as unknown as typeof inProgressSessions
+        )
+
+        // Count of tasks that were never checked off, in concluded sessions.
+        const { count: incompleteCount } = await supabase
+          .from('session_tasks')
+          .select('sessions!inner(status)', { count: 'exact', head: true })
+          .is('completed_at', null)
+          .eq('sessions.user_id', data.user.id)
+          .eq('sessions.status', 'completed')
+        setIncompleteTaskCount(incompleteCount ?? 0)
 
         const today = WEEKDAYS[new Date().getDay()]
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
@@ -196,12 +231,64 @@ function HomePageInner() {
         completedAt: null,
         elapsedSecondsAtCompletion: null,
       })),
+      existingSessionId: null,
     })
     router.push('/timer')
   }
 
   const handleContinueGoal = (goalId: string) => {
     router.push(`/?goalId=${goalId}`)
+  }
+
+  // Resume a paused session — pull its full state + tasks, hydrate the browser
+  // session, and land back on /timer where the countdown picks up where the
+  // user left off.
+  const handleResumeSession = async (sessionId: string) => {
+    const { data: row } = await supabase
+      .from('sessions')
+      .select(
+        'id, session_name, planned_duration_minutes, elapsed_seconds, goal_id, category_id, session_tasks(id, name, position, completed_at)'
+      )
+      .eq('id', sessionId)
+      .single()
+    if (!row) return
+
+    const elapsedSec = row.elapsed_seconds ?? 0
+    // Virtual startedAt: pretend the session started `elapsedSec` seconds ago,
+    // with no accumulated pauses — the countdown then reads exactly (planned - elapsed).
+    const virtualStartedAt = new Date(Date.now() - elapsedSec * 1000).toISOString()
+
+    saveSession({
+      plannedDurationMinutes: row.planned_duration_minutes,
+      startedAt: virtualStartedAt,
+      setupFocusText: row.session_name,
+      goalId: row.goal_id,
+      categoryId: row.category_id,
+      endReason: null,
+      actualDurationMinutes: null,
+      isExpired: false,
+      existingSessionId: row.id,
+      tasks: (row.session_tasks ?? [])
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          position: t.position,
+          completedAt: t.completed_at,
+          // Elapsed at completion for previously-checked tasks: recompute as
+          // best-effort by assuming their check time was proportional to
+          // position. We can't restore the exact moments; but the total
+          // elapsed since resume plus the recorded task completions is fine
+          // for downstream duration math.
+          elapsedSecondsAtCompletion: t.completed_at ? elapsedSec : null,
+        })),
+    })
+
+    // Clear any timer state so /timer builds a fresh one aligned to virtualStartedAt.
+    if (typeof window !== 'undefined') sessionStorage.removeItem('focus_timer_state')
+
+    router.push('/timer')
   }
 
   const recentGoals = goalStats.filter((g) => g.last_session_at !== null).slice(0, 3)
@@ -422,6 +509,43 @@ function HomePageInner() {
             </div>
           )}
 
+          {inProgressSessions.length > 0 && (
+            <div>
+              <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
+                In progress
+              </p>
+              <div>
+                {inProgressSessions.map((s) => {
+                  const elapsedMin = Math.max(1, Math.round((s.elapsed_seconds ?? 0) / 60))
+                  const label = s.session_name ?? 'Session'
+                  const meta = [
+                    s.goals?.name ?? null,
+                    `${elapsedMin} of ${s.planned_duration_minutes} min`,
+                  ].filter(Boolean).join(' · ')
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => handleResumeSession(s.id)}
+                      className="w-full text-left py-3.5 border-b border-border-warm last:border-0 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-sans text-sm font-medium text-text-primary truncate">
+                          {label}
+                        </p>
+                        <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
+                          {meta}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-sans text-xs text-coral">
+                        Resume →
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {recentGoals.length > 0 && (
             <div>
               <div className="flex items-baseline justify-between mb-2">
@@ -504,6 +628,16 @@ function HomePageInner() {
               className="mt-3 font-sans text-xs text-text-muted w-full text-left"
             >
               + {sessionCount - 5} more →
+            </button>
+          )}
+
+          {incompleteTaskCount > 0 && (
+            <button
+              onClick={() => router.push('/incomplete-tasks')}
+              className="mt-6 pt-4 border-t border-border-warm w-full text-left font-sans text-xs text-text-muted"
+            >
+              {incompleteTaskCount} unfinished{' '}
+              {incompleteTaskCount === 1 ? 'task' : 'tasks'} →
             </button>
           )}
         </div>
