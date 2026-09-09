@@ -7,6 +7,7 @@ interface SessionRowProps {
   actualDurationMinutes: number
   rating: number | null
   goalName?: string | null
+  goalColor?: string | null   // if provided, goal name renders in this color
   taskCount?: number
   onClick: () => void
 }
@@ -17,6 +18,7 @@ export function SessionRow({
   actualDurationMinutes,
   rating,
   goalName,
+  goalColor,
   taskCount,
   onClick,
 }: SessionRowProps) {
@@ -40,7 +42,9 @@ export function SessionRow({
         <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
           {goalName && (
             <>
-              <span className="text-goal-green">{goalName}</span>
+              <span style={goalColor ? { color: goalColor } : undefined} className={goalColor ? '' : 'text-goal-green'}>
+                {goalName}
+              </span>
               {' · '}
             </>
           )}

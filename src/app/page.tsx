@@ -72,7 +72,7 @@ function HomePageInner() {
       started_at: string
       actual_duration_minutes: number
       rating: number | null
-      goals: { name: string } | null
+      goals: { id: string; name: string; color: string | null } | null
       session_tasks: { id: string }[]
     }>
   >([])
@@ -85,7 +85,7 @@ function HomePageInner() {
       elapsed_seconds: number | null
       goal_id: string | null
       category_id: string | null
-      goals: { name: string } | null
+      goals: { id: string; name: string; color: string | null } | null
     }>
   >([])
   const [incompleteTaskCount, setIncompleteTaskCount] = useState(0)
@@ -97,7 +97,7 @@ function HomePageInner() {
       sessions: {
         id: string
         session_name: string | null
-        goals: { name: string } | null
+        goals: { id: string; name: string; color: string | null } | null
         categories: { name: string } | null
       } | null
     }>
@@ -155,7 +155,7 @@ function HomePageInner() {
           supabase
             .from('sessions')
             .select(
-              'id, session_name, started_at, actual_duration_minutes, rating, goals(name), session_tasks(id)',
+              'id, session_name, started_at, actual_duration_minutes, rating, goals(id, name, color), session_tasks(id)',
               { count: 'exact' }
             )
             .eq('user_id', data.user.id)
@@ -166,7 +166,7 @@ function HomePageInner() {
           supabase
             .from('sessions')
             .select(
-              'id, session_name, started_at, planned_duration_minutes, elapsed_seconds, goal_id, category_id, goals(name)'
+              'id, session_name, started_at, planned_duration_minutes, elapsed_seconds, goal_id, category_id, goals(id, name, color)'
             )
             .eq('user_id', data.user.id)
             .eq('status', 'in_progress')
@@ -187,7 +187,7 @@ function HomePageInner() {
         const { data: incTasks, count: incompleteCount } = await supabase
           .from('session_tasks')
           .select(
-            'id, name, sessions!inner(id, session_name, user_id, status, goals(name), categories(name))',
+            'id, name, sessions!inner(id, session_name, user_id, status, goals(id, name, color), categories(name))',
             { count: 'exact' }
           )
           .is('completed_at', null)
@@ -573,6 +573,9 @@ function HomePageInner() {
                 {inProgressSessions.map((s) => {
                   const elapsedMin = Math.max(1, Math.round((s.elapsed_seconds ?? 0) / 60))
                   const label = s.session_name ?? 'Session'
+                  const gcolor = s.goals
+                    ? getGoalColor({ id: s.goals.id, color: s.goals.color })
+                    : null
                   return (
                     <button
                       key={s.id}
@@ -586,7 +589,9 @@ function HomePageInner() {
                         <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
                           {s.goals?.name && (
                             <>
-                              <span className="text-goal-green">{s.goals.name}</span>
+                              <span style={gcolor ? { color: gcolor } : undefined}>
+                                {s.goals.name}
+                              </span>
                               {' · '}
                             </>
                           )}
@@ -681,6 +686,9 @@ function HomePageInner() {
                   {incompleteTasks.map((t) => {
                     const s = t.sessions
                     const goalName = s?.goals?.name ?? null
+                    const goalColor = s?.goals
+                      ? getGoalColor({ id: s.goals.id, color: s.goals.color })
+                      : null
                     const otherContext = goalName
                       ? null
                       : s?.categories?.name ?? s?.session_name ?? null
@@ -695,7 +703,10 @@ function HomePageInner() {
                             {t.name}
                           </p>
                           {goalName ? (
-                            <p className="font-sans text-xs text-goal-green mt-0.5 truncate">
+                            <p
+                              className="font-sans text-xs mt-0.5 truncate"
+                              style={{ color: goalColor ?? undefined }}
+                            >
                               {goalName}
                             </p>
                           ) : otherContext ? (
@@ -754,6 +765,11 @@ function HomePageInner() {
                   actualDurationMinutes={s.actual_duration_minutes}
                   rating={s.rating}
                   goalName={s.goals?.name ?? null}
+                  goalColor={
+                    s.goals
+                      ? getGoalColor({ id: s.goals.id, color: s.goals.color })
+                      : null
+                  }
                   taskCount={s.session_tasks.length}
                   onClick={() => router.push(`/sessions/${s.id}`)}
                 />

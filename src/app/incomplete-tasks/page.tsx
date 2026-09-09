@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/format'
+import { getGoalColor } from '@/lib/goal-color'
 
 interface IncompleteTaskRow {
   id: string
@@ -12,7 +13,7 @@ interface IncompleteTaskRow {
     session_name: string | null
     started_at: string
     status: string
-    goals: { name: string } | null
+    goals: { id: string; name: string; color: string | null } | null
     categories: { name: string } | null
   } | null
 }
@@ -31,7 +32,7 @@ export default function IncompleteTasksPage() {
         const { data } = await supabase
           .from('session_tasks')
           .select(
-            'id, name, sessions!inner(id, session_name, started_at, status, user_id, goals(name), categories(name))'
+            'id, name, sessions!inner(id, session_name, started_at, status, user_id, goals(id, name, color), categories(name))'
           )
           .is('completed_at', null)
           .eq('sessions.user_id', userData.user.id)
@@ -70,7 +71,12 @@ export default function IncompleteTasksPage() {
           {tasks.map((t) => {
             const s = t.sessions
             if (!s) return null
-            const context = s.goals?.name ?? s.categories?.name ?? null
+            const goalName = s.goals?.name ?? null
+            const goalColor = s.goals
+              ? getGoalColor({ id: s.goals.id, color: s.goals.color })
+              : null
+            const otherContext = goalName ? null : s.categories?.name ?? null
+            const rest = [s.session_name ?? 'Session', formatDate(s.started_at)]
             return (
               <button
                 key={t.id}
@@ -81,13 +87,18 @@ export default function IncompleteTasksPage() {
                   {t.name}
                 </p>
                 <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
-                  {[
-                    context,
-                    s.session_name ?? 'Session',
-                    formatDate(s.started_at),
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {goalName ? (
+                    <>
+                      <span style={{ color: goalColor ?? undefined }}>{goalName}</span>
+                      {' · '}
+                    </>
+                  ) : otherContext ? (
+                    <>
+                      {otherContext}
+                      {' · '}
+                    </>
+                  ) : null}
+                  {rest.join(' · ')}
                 </p>
               </button>
             )

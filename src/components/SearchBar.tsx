@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { HighlightedText } from '@/components/HighlightedText'
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import { formatDate, getSnippet } from '@/lib/format'
+import { getGoalColor } from '@/lib/goal-color'
 
 const SEARCH_PLACEHOLDERS = [
   'Search through your session names, notes, etc.',
@@ -19,7 +20,7 @@ interface SearchResult {
   notes: string | null
   rating: number | null
   started_at: string
-  goals: { name: string } | null
+  goals: { id: string; name: string; color: string | null } | null
   categories: { name: string } | null
 }
 
@@ -51,7 +52,7 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
       try {
         const { data } = await supabase
           .from('sessions')
-          .select('id, session_name, notes, rating, started_at, goals(name), categories(name)')
+          .select('id, session_name, notes, rating, started_at, goals(id, name, color), categories(name)')
           .or(`session_name.ilike.%${trimmed}%,notes.ilike.%${trimmed}%`)
           .order('started_at', { ascending: false })
           .limit(20)
@@ -156,6 +157,9 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
 
             {results.map((r) => {
               const goalName = r.goals?.name ?? null
+              const goalColor = r.goals
+                ? getGoalColor({ id: r.goals.id, color: r.goals.color })
+                : null
               const categoryName = r.categories?.name ?? null
               const matchField = (() => {
                 const q = trimmed.toLowerCase()
@@ -172,7 +176,12 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
                   className="text-left w-full px-4 py-3 border-b border-border-warm last:border-0 hover:bg-coral-light/40 transition-colors"
                 >
                   {goalName ? (
-                    <p className="font-sans text-xs text-goal-green mb-0.5">{goalName}</p>
+                    <p
+                      className="font-sans text-xs mb-0.5"
+                      style={{ color: goalColor ?? undefined }}
+                    >
+                      {goalName}
+                    </p>
                   ) : categoryName ? (
                     <p className="font-sans text-xs text-text-muted mb-0.5">{categoryName}</p>
                   ) : null}

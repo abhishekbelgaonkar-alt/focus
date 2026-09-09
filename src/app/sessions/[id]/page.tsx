@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getRatingLabel } from '@/lib/timer'
 import { formatDuration, formatDateTime } from '@/lib/format'
+import { getGoalColor } from '@/lib/goal-color'
 
 interface TagRow {
   distraction_tags: { id: string; name: string }
@@ -25,7 +26,7 @@ interface SessionDetail {
   actual_duration_minutes: number
   rating: number | null
   notes: string | null
-  goals: { name: string } | null
+  goals: { id: string; name: string; color: string | null } | null
   categories: { name: string } | null
   session_distraction_tags: TagRow[]
   session_tasks: TaskRow[]
@@ -48,7 +49,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         actual_duration_minutes,
         rating,
         notes,
-        goals(name),
+        goals(id, name, color),
         categories(name),
         session_distraction_tags(distraction_tags(id, name)),
         session_tasks(id, name, position, completed_at, duration_seconds, rating)
@@ -66,6 +67,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   if (!session) return <p className="p-6 font-sans text-text-muted">Session not found.</p>
 
   const contextName = session.goals?.name ?? session.categories?.name ?? null
+  const contextColor = session.goals
+    ? getGoalColor({ id: session.goals.id, color: session.goals.color })
+    : null
   const tags = session.session_distraction_tags.map((t) => t.distraction_tags)
 
   return (
@@ -84,7 +88,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {contextName && (
-        <p className="font-sans text-sm text-text-muted mb-1">{contextName}</p>
+        <p
+          className="font-sans text-sm mb-1"
+          style={{ color: contextColor ?? 'var(--color-text-muted)' }}
+        >{contextName}</p>
       )}
       <h1 className="font-sans text-xl font-medium text-text-primary mb-1">
         {session.session_name ?? 'Session'}

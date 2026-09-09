@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SessionRow } from '@/components/SessionRow'
 import { formatDuration } from '@/lib/format'
+import { getGoalColor } from '@/lib/goal-color'
 
 interface HistoryRow {
   id: string
@@ -11,7 +12,7 @@ interface HistoryRow {
   started_at: string
   actual_duration_minutes: number
   rating: number | null
-  goals: { name: string } | null
+  goals: { id: string; name: string; color: string | null } | null
   categories: { name: string } | null
   session_tasks: { id: string }[]
 }
@@ -45,7 +46,7 @@ export default function HistoryPage() {
         const { data } = await supabase
           .from('sessions')
           .select(
-            'id, session_name, started_at, actual_duration_minutes, rating, goals(name), categories(name), session_tasks(id)'
+            'id, session_name, started_at, actual_duration_minutes, rating, goals(id, name, color), categories(name), session_tasks(id)'
           )
           .eq('user_id', userData.user.id)
           .eq('status', 'completed')
@@ -123,6 +124,11 @@ export default function HistoryPage() {
                     actualDurationMinutes={s.actual_duration_minutes}
                     rating={s.rating}
                     goalName={s.goals?.name ?? s.categories?.name ?? null}
+                    goalColor={
+                      s.goals
+                        ? getGoalColor({ id: s.goals.id, color: s.goals.color })
+                        : null
+                    }
                     taskCount={s.session_tasks.length}
                     onClick={() => router.push(`/sessions/${s.id}`)}
                   />
