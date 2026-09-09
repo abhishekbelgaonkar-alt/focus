@@ -212,11 +212,11 @@ export default function TimerPage() {
               ))}
               {/* Rotating marker — thin vertical coral bar at 12 o'clock, rotated by elapsed angle */}
               <rect
-                x={CENTER - 2}
+                x={CENTER - 1}
                 y={CENTER - R_OUTER - 4}
-                width={4}
+                width={2}
                 height={22}
-                rx={1.5}
+                rx={1}
                 fill="#e8905a"
                 transform={`rotate(${markerAngle} ${CENTER} ${CENTER})`}
                 style={{ transition: isPaused ? 'none' : 'transform 100ms linear' }}
