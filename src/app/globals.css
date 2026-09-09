@@ -94,11 +94,11 @@
 }
 
 /*
-  Themes. Each override class replaces the base @theme variables above.
-  Applied by adding e.g. 'theme-dark' to <html> — done via an inline script
-  in layout.tsx before hydration so there's no FOUC.
+  Themes. Attribute-based (not class) so React's className reconciliation
+  on <html> can't strip them. Set via an inline script in layout.tsx before
+  hydration to avoid FOUC.
 */
-.theme-dark {
+[data-theme='dark'] {
   --color-cream: #1a1512;
   --color-text-primary: #f2e8dc;
   --color-text-muted: #b09a80;
@@ -119,7 +119,7 @@
   --color-goal-green: #4ade80;   /* brighter for legibility on dark bg */
 }
 
-.theme-cherry {
+[data-theme='cherry'] {
   --color-cream: #fef7fa;
   --color-text-primary: #4a1e35;
   --color-text-muted: #a56484;
@@ -143,7 +143,6 @@
 body {
   background-color: var(--color-cream);
   color: var(--color-text-primary);
-  transition: background-color 300ms ease, color 300ms ease;
 }
 
 /*

@@ -24,13 +24,18 @@ export const metadata: Metadata = {
 }
 
 // Runs synchronously in <head> BEFORE React hydrates so the correct theme
-// class is on <html> for the very first paint. Prevents a cream flash on
-// dark/cherry mode.
-const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem('theme');if(t==='dark'||t==='cherry')document.documentElement.classList.add('theme-'+t);}catch(e){}`
+// attribute is on <html> for the very first paint. Prevents a cream flash
+// on dark/cherry mode. We write a data-theme attribute (not a class) so
+// React's className reconciliation can't strip it during hydration.
+const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem('theme');if(t==='dark'||t==='cherry')document.documentElement.setAttribute('data-theme',t);}catch(e){}`
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${quicksand.variable}`}>
+    <html
+      lang="en"
+      className={`${outfit.variable} ${quicksand.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

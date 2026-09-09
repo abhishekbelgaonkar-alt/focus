@@ -12,9 +12,10 @@ const THEMES: { key: Theme; label: string; swatch: string }[] = [
 /** Apply a theme to <html> and persist the choice. */
 function applyTheme(theme: Theme) {
   const html = document.documentElement
-  html.classList.remove('theme-dark', 'theme-cherry')
-  if (theme === 'dark' || theme === 'cherry') {
-    html.classList.add(`theme-${theme}`)
+  if (theme === 'cream') {
+    html.removeAttribute('data-theme')
+  } else {
+    html.setAttribute('data-theme', theme)
   }
   try { localStorage.setItem('theme', theme) } catch { /* ignore */ }
 }
@@ -24,12 +25,12 @@ export function ThemeToggle() {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Hydrate current theme state from the class already on <html>
-  // (the pre-hydration script in layout.tsx set it before we mounted).
+  // Hydrate current theme state from the data-theme attribute already on
+  // <html> (the pre-hydration script in layout.tsx set it before we mounted).
   useEffect(() => {
-    const cls = document.documentElement.classList
-    if (cls.contains('theme-dark')) setCurrent('dark')
-    else if (cls.contains('theme-cherry')) setCurrent('cherry')
+    const attr = document.documentElement.getAttribute('data-theme')
+    if (attr === 'dark') setCurrent('dark')
+    else if (attr === 'cherry') setCurrent('cherry')
     else setCurrent('cream')
   }, [])
 
