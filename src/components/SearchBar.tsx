@@ -155,7 +155,8 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
             )}
 
             {results.map((r) => {
-              const contextName = r.goals?.name ?? r.categories?.name ?? null
+              const goalName = r.goals?.name ?? null
+              const categoryName = r.categories?.name ?? null
               const matchField = (() => {
                 const q = trimmed.toLowerCase()
                 if (r.notes?.toLowerCase().includes(q)) return r.notes
@@ -170,9 +171,11 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
                   onClick={() => openResult(r.id)}
                   className="text-left w-full px-4 py-3 border-b border-border-warm last:border-0 hover:bg-coral-light/40 transition-colors"
                 >
-                  {contextName && (
-                    <p className="font-sans text-xs text-text-muted mb-0.5">{contextName}</p>
-                  )}
+                  {goalName ? (
+                    <p className="font-sans text-xs text-goal-green mb-0.5">{goalName}</p>
+                  ) : categoryName ? (
+                    <p className="font-sans text-xs text-text-muted mb-0.5">{categoryName}</p>
+                  ) : null}
                   <div className="flex items-baseline gap-3 mb-1">
                     <p className="font-sans text-sm font-medium text-text-primary">
                       {r.session_name ?? 'Session'}

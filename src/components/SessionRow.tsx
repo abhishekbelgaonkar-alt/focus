@@ -20,14 +20,13 @@ export function SessionRow({
   taskCount,
   onClick,
 }: SessionRowProps) {
-  const metaParts = [
-    goalName ? goalName : null,
+  const rest = [
     formatDateTime(startedAt),
     formatDuration(actualDurationMinutes),
     taskCount && taskCount > 0
       ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`
       : null,
-  ].filter(Boolean)
+  ].filter(Boolean) as string[]
 
   return (
     <button
@@ -39,7 +38,13 @@ export function SessionRow({
           {sessionName ?? 'Session'}
         </p>
         <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
-          {metaParts.join(' · ')}
+          {goalName && (
+            <>
+              <span className="text-goal-green">{goalName}</span>
+              {' · '}
+            </>
+          )}
+          {rest.join(' · ')}
         </p>
       </div>
       {rating !== null && (

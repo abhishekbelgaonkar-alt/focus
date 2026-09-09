@@ -14,6 +14,8 @@
 
   /* Task-completion green — money-green tone, distinct from coral accents */
   --color-check-green: #22c55e;
+  /* Goal-name text — darker green readable on cream */
+  --color-goal-green: #16a34a;
 
   /* Heatmap scale */
   --color-heatmap-none: #f0ece2;

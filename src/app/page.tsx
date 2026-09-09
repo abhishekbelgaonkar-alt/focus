@@ -542,10 +542,6 @@ function HomePageInner() {
                 {inProgressSessions.map((s) => {
                   const elapsedMin = Math.max(1, Math.round((s.elapsed_seconds ?? 0) / 60))
                   const label = s.session_name ?? 'Session'
-                  const meta = [
-                    s.goals?.name ?? null,
-                    `${elapsedMin} of ${s.planned_duration_minutes} min`,
-                  ].filter(Boolean).join(' · ')
                   return (
                     <button
                       key={s.id}
@@ -557,7 +553,13 @@ function HomePageInner() {
                           {label}
                         </p>
                         <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
-                          {meta}
+                          {s.goals?.name && (
+                            <>
+                              <span className="text-goal-green">{s.goals.name}</span>
+                              {' · '}
+                            </>
+                          )}
+                          {elapsedMin} of {s.planned_duration_minutes} min
                         </p>
                       </div>
                       <span className="shrink-0 font-sans text-xs text-coral">
@@ -635,11 +637,10 @@ function HomePageInner() {
                 <div>
                   {incompleteTasks.map((t) => {
                     const s = t.sessions
-                    const context =
-                      s?.goals?.name ??
-                      s?.categories?.name ??
-                      s?.session_name ??
-                      null
+                    const goalName = s?.goals?.name ?? null
+                    const otherContext = goalName
+                      ? null
+                      : s?.categories?.name ?? s?.session_name ?? null
                     return (
                       <button
                         key={t.id}
@@ -650,11 +651,15 @@ function HomePageInner() {
                           <p className="font-sans text-sm font-medium text-text-primary truncate">
                             {t.name}
                           </p>
-                          {context && (
-                            <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
-                              {context}
+                          {goalName ? (
+                            <p className="font-sans text-xs text-goal-green mt-0.5 truncate">
+                              {goalName}
                             </p>
-                          )}
+                          ) : otherContext ? (
+                            <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
+                              {otherContext}
+                            </p>
+                          ) : null}
                         </div>
                         <span className="shrink-0 font-sans text-xs text-coral">
                           Open →
