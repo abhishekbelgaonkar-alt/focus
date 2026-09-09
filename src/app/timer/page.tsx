@@ -407,22 +407,30 @@ export default function TimerPage() {
                     <button
                       onClick={() => toggleTask(t.id)}
                       aria-label={done ? `Uncheck ${t.name}` : `Check off ${t.name}`}
-                      className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors ${
-                        done ? 'bg-coral border-coral' : 'border-border-warm bg-transparent'
+                      className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-[background-color,border-color,transform] duration-300 ease-out ${
+                        done
+                          ? 'bg-check-green border-check-green scale-105'
+                          : 'border-border-warm bg-transparent scale-100'
                       }`}
                     >
-                      {done && (
-                        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-                          <path
-                            d="M1.5 5.5 L4 8 L8.5 2.5"
-                            stroke="white"
-                            strokeWidth="1.75"
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 10 10"
+                        aria-hidden="true"
+                        className={`transition-[opacity,transform] duration-300 ease-out ${
+                          done ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                        }`}
+                      >
+                        <path
+                          d="M1.5 5.5 L4 8 L8.5 2.5"
+                          stroke="white"
+                          strokeWidth="1.75"
+                          fill="none"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     </button>
                     <span
                       className={`flex-1 font-sans text-sm ${

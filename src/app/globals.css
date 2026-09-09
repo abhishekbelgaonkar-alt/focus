@@ -12,6 +12,9 @@
   --color-coral-light: #fbe6d4;
   --color-tag-text: #a05a1f;
 
+  /* Task-completion green — money-green tone, distinct from coral accents */
+  --color-check-green: #22c55e;
+
   /* Heatmap scale */
   --color-heatmap-none: #f0ece2;
   --color-heatmap-low: #f3d9bd;

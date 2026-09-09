@@ -151,7 +151,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   >
                     <span
                       className={`w-4 h-4 rounded-full border-[1.5px] shrink-0 flex items-center justify-center ${
-                        isDone ? 'bg-coral border-coral' : 'border-border-warm bg-transparent'
+                        isDone
+                          ? 'bg-check-green border-check-green'
+                          : 'border-border-warm bg-transparent'
                       }`}
                     >
                       {isDone && (
