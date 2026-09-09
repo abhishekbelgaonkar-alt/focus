@@ -12,6 +12,7 @@ interface HistoryRow {
   rating: number | null
   goals: { name: string } | null
   categories: { name: string } | null
+  session_tasks: { id: string }[]
 }
 
 export default function HistoryPage() {
@@ -27,7 +28,9 @@ export default function HistoryPage() {
         if (!userData?.user) return
         const { data } = await supabase
           .from('sessions')
-          .select('id, session_name, started_at, actual_duration_minutes, rating, goals(name), categories(name)')
+          .select(
+            'id, session_name, started_at, actual_duration_minutes, rating, goals(name), categories(name), session_tasks(id)'
+          )
           .eq('user_id', userData.user.id)
           .order('started_at', { ascending: false })
           .limit(500)
@@ -55,29 +58,25 @@ export default function HistoryPage() {
         <div className="border border-border-warm rounded-xl p-5">
           <p className="font-sans text-sm text-text-primary mb-2">No sessions yet.</p>
           <p className="font-sans text-sm text-text-muted">
-            Once you finish and save a session, it&apos;ll show up here in reverse-chronological order.
+            Once you finish and save a session, it&apos;ll show up here in
+            reverse-chronological order.
           </p>
         </div>
       ) : (
         <div>
-          {sessions.map((s) => {
-            const context = s.goals?.name ?? s.categories?.name ?? null
-            return (
-              <div key={s.id}>
-                {context && (
-                  <p className="font-sans text-xs text-text-muted mt-3 -mb-2">{context}</p>
-                )}
-                <SessionRow
-                  id={s.id}
-                  sessionName={s.session_name}
-                  startedAt={s.started_at}
-                  actualDurationMinutes={s.actual_duration_minutes}
-                  rating={s.rating}
-                  onClick={() => router.push(`/sessions/${s.id}`)}
-                />
-              </div>
-            )
-          })}
+          {sessions.map((s) => (
+            <SessionRow
+              key={s.id}
+              id={s.id}
+              sessionName={s.session_name}
+              startedAt={s.started_at}
+              actualDurationMinutes={s.actual_duration_minutes}
+              rating={s.rating}
+              goalName={s.goals?.name ?? s.categories?.name ?? null}
+              taskCount={s.session_tasks.length}
+              onClick={() => router.push(`/sessions/${s.id}`)}
+            />
+          ))}
         </div>
       )}
     </main>

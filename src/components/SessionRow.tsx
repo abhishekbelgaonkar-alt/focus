@@ -6,6 +6,8 @@ interface SessionRowProps {
   startedAt: string
   actualDurationMinutes: number
   rating: number | null
+  goalName?: string | null
+  taskCount?: number
   onClick: () => void
 }
 
@@ -14,8 +16,19 @@ export function SessionRow({
   startedAt,
   actualDurationMinutes,
   rating,
+  goalName,
+  taskCount,
   onClick,
 }: SessionRowProps) {
+  const metaParts = [
+    goalName ? goalName : null,
+    formatDateTime(startedAt),
+    formatDuration(actualDurationMinutes),
+    taskCount && taskCount > 0
+      ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`
+      : null,
+  ].filter(Boolean)
+
   return (
     <button
       onClick={onClick}
@@ -25,8 +38,8 @@ export function SessionRow({
         <p className="font-sans text-sm font-medium text-text-primary truncate">
           {sessionName ?? 'Session'}
         </p>
-        <p className="font-sans text-xs text-text-muted mt-0.5">
-          {formatDateTime(startedAt)} · {formatDuration(actualDurationMinutes)}
+        <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
+          {metaParts.join(' · ')}
         </p>
       </div>
       {rating !== null && (

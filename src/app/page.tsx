@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
+import { SessionRow } from '@/components/SessionRow'
 import { HowItWorksModal } from '@/components/HowItWorksModal'
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 
@@ -60,6 +61,17 @@ function HomePageInner() {
   const [goalStats, setGoalStats] = useState<GoalStat[]>([])
   const [todayGoals, setTodayGoals] = useState<GoalStat[]>([])
   const [sessionCount, setSessionCount] = useState<number | null>(null)
+  const [recentSessions, setRecentSessions] = useState<
+    Array<{
+      id: string
+      session_name: string | null
+      started_at: string
+      actual_duration_minutes: number
+      rating: number | null
+      goals: { name: string } | null
+      session_tasks: { id: string }[]
+    }>
+  >([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
 
@@ -105,16 +117,25 @@ function HomePageInner() {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
 
-        const [{ data: stats }, { count }] = await Promise.all([
+        const [{ data: stats }, recentQuery] = await Promise.all([
           supabase.rpc('get_goal_stats'),
+          // Single query gets both the last 5 sessions AND the total count.
           supabase
             .from('sessions')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', data.user.id),
+            .select(
+              'id, session_name, started_at, actual_duration_minutes, rating, goals(name), session_tasks(id)',
+              { count: 'exact' }
+            )
+            .eq('user_id', data.user.id)
+            .order('started_at', { ascending: false })
+            .limit(5),
         ])
         const all = (stats ?? []) as GoalStat[]
         setGoalStats(all)
-        setSessionCount(count ?? 0)
+        setSessionCount(recentQuery.count ?? 0)
+        setRecentSessions(
+          (recentQuery.data ?? []) as unknown as typeof recentSessions
+        )
 
         const today = WEEKDAYS[new Date().getDay()]
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
@@ -190,31 +211,34 @@ function HomePageInner() {
 
   return (
     <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-6xl mx-auto">
-      {/* ── Top nav ────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-4 mb-6 relative z-40">
-        <button
-          onClick={() => router.push('/goals')}
-          className="font-sans text-sm text-text-muted whitespace-nowrap shrink-0"
-        >
-          All goals
-        </button>
-        <button
-          onClick={() => setHelpOpen(true)}
-          className="font-sans text-sm text-text-muted whitespace-nowrap shrink-0"
-        >
-          How it works
-        </button>
-        {/* Search bar sits toward the right at a fixed max width so its
-            underline doesn't stretch across the whole nav. */}
-        <div className="ml-auto w-full max-w-xs">
+      {/* ── Top nav — grid matches the 3-col content grid below so the
+          search bar sits above the timer's inputs, not stretched. ───── */}
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] md:gap-x-8 items-center gap-y-3 mb-6 relative z-40">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push('/goals')}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            All goals
+          </button>
+          <button
+            onClick={() => setHelpOpen(true)}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            How it works
+          </button>
+        </div>
+        <div>
           <SearchBar onOpenChange={setSearchOpen} />
         </div>
-        <button
-          onClick={() => router.push('/profile')}
-          className="font-sans text-sm text-text-muted whitespace-nowrap shrink-0"
-        >
-          Profile
-        </button>
+        <div className="flex md:justify-end">
+          <button
+            onClick={() => router.push('/profile')}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            Profile
+          </button>
+        </div>
       </div>
 
       {/* ── Date ─────────────────────────────────────────────────────────── */}
@@ -433,28 +457,51 @@ function HomePageInner() {
           )}
         </div>
 
-        {/* RIGHT column — History (col 3 on md+). Single button opens
-            the full session log at /history. */}
+        {/* RIGHT column — History (col 3 on md+). Header links to the
+            full log at /history; the last 5 sessions preview below. */}
         <div className="md:col-start-3 md:row-start-1">
-          <button
-            onClick={() => router.push('/history')}
-            className="w-full border border-border-warm rounded-xl p-5 text-left"
-          >
-            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
               History
             </p>
-            <div className="flex items-baseline justify-between">
-              <span className="font-sans text-sm font-medium text-text-primary">
-                View all sessions
-              </span>
-              <span className="font-sans text-lg text-text-muted">→</span>
+            <button
+              onClick={() => router.push('/history')}
+              className="font-sans text-xs text-coral"
+            >
+              View all →
+            </button>
+          </div>
+
+          {recentSessions.length === 0 ? (
+            <p className="font-sans text-xs text-text-light py-2">
+              No sessions logged yet.
+            </p>
+          ) : (
+            <div>
+              {recentSessions.map((s) => (
+                <SessionRow
+                  key={s.id}
+                  id={s.id}
+                  sessionName={s.session_name}
+                  startedAt={s.started_at}
+                  actualDurationMinutes={s.actual_duration_minutes}
+                  rating={s.rating}
+                  goalName={s.goals?.name ?? null}
+                  taskCount={s.session_tasks.length}
+                  onClick={() => router.push(`/sessions/${s.id}`)}
+                />
+              ))}
             </div>
-            {sessionCount !== null && sessionCount > 0 && (
-              <p className="font-numbers text-xs text-text-light mt-2">
-                {sessionCount} {sessionCount === 1 ? 'session' : 'sessions'} logged
-              </p>
-            )}
-          </button>
+          )}
+
+          {sessionCount !== null && sessionCount > 5 && (
+            <button
+              onClick={() => router.push('/history')}
+              className="mt-3 font-sans text-xs text-text-muted w-full text-left"
+            >
+              + {sessionCount - 5} more →
+            </button>
+          )}
         </div>
       </div>
 
