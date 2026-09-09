@@ -114,13 +114,26 @@ export default function RatePage() {
     const finalActual = resolveActualMinutes()
     const finalEndReason = session.isExpired ? branchReason : session.endReason
 
+    // If the user didn't name the session but added tasks, use the task names
+    // as the session's default title (comma-joined, in entry order).
+    const typedName = form.sessionName.trim()
+    const finalSessionName =
+      typedName ||
+      (session.tasks.length > 0
+        ? session.tasks
+            .slice()
+            .sort((a, b) => a.position - b.position)
+            .map((t) => t.name)
+            .join(', ')
+        : null)
+
     const { data: saved, error } = await supabase
       .from('sessions')
       .insert({
         user_id: user.id,
         goal_id: goalId,
         category_id: categoryId,
-        session_name: form.sessionName.trim() || null,
+        session_name: finalSessionName,
         planned_duration_minutes: session.plannedDurationMinutes,
         actual_duration_minutes: finalActual,
         started_at: session.startedAt,
