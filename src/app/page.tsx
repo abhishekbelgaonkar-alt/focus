@@ -536,7 +536,7 @@ function HomePageInner() {
           {inProgressSessions.length > 0 && (
             <div>
               <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
-                In progress
+                Sessions in progress
               </p>
               <div>
                 {inProgressSessions.map((s) => {
