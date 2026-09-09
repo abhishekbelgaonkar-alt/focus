@@ -196,7 +196,7 @@ function HomePageInner() {
   })
 
   return (
-    <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-3xl mx-auto">
+    <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-6xl mx-auto">
       {/* ── Top nav: All goals · How it works · [search] · Profile ─────── */}
       <div className="flex items-center gap-4 mb-6 relative z-40">
         <button
@@ -227,14 +227,16 @@ function HomePageInner() {
         {todayDate}
       </p>
 
-      {/* ── Everything below dims + blurs when search is open ──────────── */}
+      {/* ── Three-column grid: LEFT (goals) | CENTER (timer) | RIGHT (sessions) ──
+          On mobile everything stacks: timer first (primary action), then goals,
+          then sessions. Blurs as a whole when search is open. */}
       <div
-        className={`transition-[filter,opacity] duration-150 ${
+        className={`grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] gap-x-8 gap-y-10 items-start transition-[filter,opacity] duration-150 ${
           searchOpen ? 'blur-sm opacity-40 pointer-events-none select-none' : ''
         }`}
       >
-        {/* Timer setup — narrower centered block so it stays intimate */}
-        <div className="mb-10 max-w-md mx-auto">
+        {/* CENTER — Timer setup (col 2 on md+, DOM-first so mobile shows it up top) */}
+        <div className="md:col-start-2 md:row-start-1">
           <label className="block font-sans text-lg font-medium text-text-primary mb-1">
             What are you working on?
           </label>
@@ -380,91 +382,85 @@ function HomePageInner() {
           </button>
         </div>
 
-        {/* Today's plan — full width */}
-        {todayGoals.length > 0 && (
-          <div className="bg-coral-light rounded-xl p-4 mb-8">
-            <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
-              Today&apos;s plan
-            </p>
-            <div className="flex flex-col gap-2">
-              {todayGoals.map((g) => (
-                <button
-                  key={g.goal_id}
-                  onClick={() => handleContinueGoal(g.goal_id)}
-                  className="text-left font-sans text-sm font-medium text-text-primary"
-                >
-                  {g.name}
-                </button>
-              ))}
+        {/* LEFT column — Today's plan + Continue a goal (col 1 on md+) */}
+        <div className="md:col-start-1 md:row-start-1 flex flex-col gap-8">
+          {todayGoals.length > 0 && (
+            <div className="bg-coral-light rounded-xl p-4">
+              <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
+                Today&apos;s plan
+              </p>
+              <div className="flex flex-col gap-2">
+                {todayGoals.map((g) => (
+                  <button
+                    key={g.goal_id}
+                    onClick={() => handleContinueGoal(g.goal_id)}
+                    className="text-left font-sans text-sm font-medium text-text-primary"
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Two-column: Continue goals (LEFT) | Recent sessions (RIGHT).
-            On mobile they stack — goals first, sessions second. */}
-        {(recentGoals.length > 0 || recentSessions.length > 0) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-10">
-            {/* LEFT — Continue a goal */}
+          {recentGoals.length > 0 && (
             <div>
-              {recentGoals.length > 0 && (
-                <>
-                  <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
-                    Continue a goal you&apos;ve been working on
-                  </p>
-                  <div className="flex flex-col gap-4">
-                    {recentGoals.map((g, i) => (
-                      <div key={g.goal_id} className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-sans text-sm font-medium text-text-primary truncate">
-                            {g.name}
-                          </p>
-                          <p className="font-sans text-xs text-text-muted mt-0.5">
-                            {formatDuration(g.total_minutes)} across {g.session_count}{' '}
-                            {g.session_count === 1 ? 'session' : 'sessions'}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleContinueGoal(g.goal_id)}
-                          className={`shrink-0 px-4 py-2 rounded-pill font-sans text-sm font-medium ${
-                            i === 0
-                              ? 'bg-coral text-white'
-                              : 'border-[1.5px] border-coral text-coral'
-                          }`}
-                        >
-                          Continue
-                        </button>
-                      </div>
-                    ))}
+              <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
+                Continue a goal
+              </p>
+              <div className="flex flex-col gap-3">
+                {recentGoals.map((g, i) => (
+                  <div
+                    key={g.goal_id}
+                    className="border border-border-warm rounded-xl p-3"
+                  >
+                    <p className="font-sans text-sm font-medium text-text-primary truncate">
+                      {g.name}
+                    </p>
+                    <p className="font-sans text-xs text-text-muted mt-0.5 mb-3">
+                      {formatDuration(g.total_minutes)} · {g.session_count}{' '}
+                      {g.session_count === 1 ? 'session' : 'sessions'}
+                    </p>
+                    <button
+                      onClick={() => handleContinueGoal(g.goal_id)}
+                      className={`w-full px-3 py-1.5 rounded-pill font-sans text-xs font-medium ${
+                        i === 0
+                          ? 'bg-coral text-white'
+                          : 'border-[1.5px] border-coral text-coral'
+                      }`}
+                    >
+                      Continue
+                    </button>
                   </div>
-                </>
-              )}
+                ))}
+              </div>
             </div>
+          )}
+        </div>
 
-            {/* RIGHT — Recent sessions (includes uncategorized saves) */}
+        {/* RIGHT column — Recent sessions (col 3 on md+) */}
+        <div className="md:col-start-3 md:row-start-1">
+          {recentSessions.length > 0 && (
             <div>
-              {recentSessions.length > 0 && (
-                <>
-                  <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
-                    Recent sessions
-                  </p>
-                  <div>
-                    {recentSessions.map((s) => (
-                      <SessionRow
-                        key={s.id}
-                        id={s.id}
-                        sessionName={s.session_name}
-                        startedAt={s.started_at}
-                        actualDurationMinutes={s.actual_duration_minutes}
-                        rating={s.rating}
-                        onClick={() => router.push(`/sessions/${s.id}`)}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
+              <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
+                Recent sessions
+              </p>
+              <div>
+                {recentSessions.map((s) => (
+                  <SessionRow
+                    key={s.id}
+                    id={s.id}
+                    sessionName={s.session_name}
+                    startedAt={s.started_at}
+                    actualDurationMinutes={s.actual_duration_minutes}
+                    rating={s.rating}
+                    onClick={() => router.push(`/sessions/${s.id}`)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
