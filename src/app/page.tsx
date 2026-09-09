@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
-import { SessionRow } from '@/components/SessionRow'
 import { HowItWorksModal } from '@/components/HowItWorksModal'
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 
@@ -60,9 +59,7 @@ function HomePageInner() {
 
   const [goalStats, setGoalStats] = useState<GoalStat[]>([])
   const [todayGoals, setTodayGoals] = useState<GoalStat[]>([])
-  const [recentSessions, setRecentSessions] = useState<
-    { id: string; session_name: string | null; started_at: string; actual_duration_minutes: number; rating: number | null }[]
-  >([])
+  const [sessionCount, setSessionCount] = useState<number | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
 
@@ -108,20 +105,16 @@ function HomePageInner() {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
 
-        const [{ data: stats }, { data: recent }] = await Promise.all([
+        const [{ data: stats }, { count }] = await Promise.all([
           supabase.rpc('get_goal_stats'),
           supabase
             .from('sessions')
-            .select('id, session_name, started_at, actual_duration_minutes, rating')
-            .eq('user_id', data.user.id)
-            .order('started_at', { ascending: false })
-            .limit(5),
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', data.user.id),
         ])
         const all = (stats ?? []) as GoalStat[]
         setGoalStats(all)
-        setRecentSessions(
-          (recent ?? []) as { id: string; session_name: string | null; started_at: string; actual_duration_minutes: number; rating: number | null }[]
-        )
+        setSessionCount(count ?? 0)
 
         const today = WEEKDAYS[new Date().getDay()]
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
@@ -197,7 +190,7 @@ function HomePageInner() {
 
   return (
     <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-6xl mx-auto">
-      {/* ── Top nav: All goals · How it works · [search] · Profile ─────── */}
+      {/* ── Top nav ────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-4 mb-6 relative z-40">
         <button
           onClick={() => router.push('/goals')}
@@ -211,7 +204,9 @@ function HomePageInner() {
         >
           How it works
         </button>
-        <div className="flex-1 min-w-0">
+        {/* Search bar sits toward the right at a fixed max width so its
+            underline doesn't stretch across the whole nav. */}
+        <div className="ml-auto w-full max-w-xs">
           <SearchBar onOpenChange={setSearchOpen} />
         </div>
         <button
@@ -438,28 +433,28 @@ function HomePageInner() {
           )}
         </div>
 
-        {/* RIGHT column — Recent sessions (col 3 on md+) */}
+        {/* RIGHT column — History (col 3 on md+). Single button opens
+            the full session log at /history. */}
         <div className="md:col-start-3 md:row-start-1">
-          {recentSessions.length > 0 && (
-            <div>
-              <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
-                Recent sessions
-              </p>
-              <div>
-                {recentSessions.map((s) => (
-                  <SessionRow
-                    key={s.id}
-                    id={s.id}
-                    sessionName={s.session_name}
-                    startedAt={s.started_at}
-                    actualDurationMinutes={s.actual_duration_minutes}
-                    rating={s.rating}
-                    onClick={() => router.push(`/sessions/${s.id}`)}
-                  />
-                ))}
-              </div>
+          <button
+            onClick={() => router.push('/history')}
+            className="w-full border border-border-warm rounded-xl p-5 text-left"
+          >
+            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
+              History
+            </p>
+            <div className="flex items-baseline justify-between">
+              <span className="font-sans text-sm font-medium text-text-primary">
+                View all sessions
+              </span>
+              <span className="font-sans text-lg text-text-muted">→</span>
             </div>
-          )}
+            {sessionCount !== null && sessionCount > 0 && (
+              <p className="font-numbers text-xs text-text-light mt-2">
+                {sessionCount} {sessionCount === 1 ? 'session' : 'sessions'} logged
+              </p>
+            )}
+          </button>
         </div>
       </div>
 
