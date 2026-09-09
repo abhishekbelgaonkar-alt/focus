@@ -188,9 +188,12 @@ function HomePageInner() {
 
           {/* Optional tasks — checked off during the timer */}
           <div className="mb-8">
-            <label className="block font-sans text-sm text-text-muted mb-3">
+            <label className="block font-sans text-sm text-text-muted">
               Tasks <span className="text-text-light">(optional)</span>
             </label>
+            <p className="font-sans text-xs text-text-light mb-3 mt-0.5">
+              Break the session into steps — check them off as you go and see how long each takes
+            </p>
             {taskDrafts.length > 0 && (
               <ol className="flex flex-col mb-3">
                 {taskDrafts.map((t, i) => (
