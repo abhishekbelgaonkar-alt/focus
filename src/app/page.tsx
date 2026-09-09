@@ -115,7 +115,9 @@ function HomePageInner() {
 
   const selectExistingGoal = async (id: string, name: string) => {
     setGoalMode({ kind: 'existing', id, name })
-    if (!focusText.trim()) setFocusText(name)
+    // Note: intentionally do NOT copy the goal name into the focus/session
+    // name field. Session name is per-run (e.g. 'Chapter 1'); the goal is
+    // the umbrella project ('Thermodynamics'). Keep them independent.
     try {
       const { data: g } = await supabase
         .from('goals')
@@ -200,7 +202,8 @@ function HomePageInner() {
           const match = all.find((g) => g.goal_id === preselectedGoalId)
           if (match) {
             setGoalMode({ kind: 'existing', id: preselectedGoalId, name: match.name })
-            setFocusText(match.name)
+            // Don't pre-fill session name from the goal name — the goal pill
+            // in the picker below already shows which goal is selected.
             const { data: g } = await supabase
               .from('goals')
               .select('last_used_duration_minutes')
