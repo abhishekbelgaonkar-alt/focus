@@ -3,8 +3,11 @@
 -- default from a palette (hashed off the goal id) when color IS NULL.
 ALTER TABLE goals ADD COLUMN IF NOT EXISTS color text;
 
--- Include the color in get_goal_stats() output.
-CREATE OR REPLACE FUNCTION get_goal_stats()
+-- Include the color in get_goal_stats() output. Return-type changed, so
+-- Postgres requires dropping the old function first.
+DROP FUNCTION IF EXISTS get_goal_stats();
+
+CREATE FUNCTION get_goal_stats()
 RETURNS TABLE (
   goal_id        uuid,
   name           text,
