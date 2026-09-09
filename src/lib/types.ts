@@ -50,6 +50,7 @@ export interface SessionTask {
   position: number
   completed_at: string | null
   duration_seconds: number | null
+  rating: number | null
   created_at: string
 }
 

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { RatingForm } from '@/components/RatingForm'
 import { AccountNudge } from '@/components/AccountNudge'
 import { formatDuration } from '@/lib/format'
+import { getRatingLabel } from '@/lib/timer'
 import type { InProgressSession } from '@/lib/session-state'
 import type { DistractionTag, EndReason } from '@/lib/types'
 import type { RatingFormData, GoalOption } from '@/components/RatingForm'
@@ -30,6 +31,22 @@ export default function RatePage() {
   // Branch state — only relevant when session.isExpired is true
   const [branchReason, setBranchReason] = useState<EndReason | null>(null)
   const [stillFocusedMinutes, setStillFocusedMinutes] = useState<string>('')
+
+  // Per-task ratings (0-5, whole numbers). Only set when the user taps a pip.
+  const [taskRatings, setTaskRatings] = useState<Map<string, number>>(new Map())
+  const setTaskRating = (taskId: string, rating: number | null) => {
+    setTaskRatings((prev) => {
+      const next = new Map(prev)
+      if (rating === null) next.delete(taskId)
+      else next.set(taskId, rating)
+      return next
+    })
+  }
+  const aggregateRating: number | null = (() => {
+    if (taskRatings.size === 0) return null
+    const vals = Array.from(taskRatings.values())
+    return vals.reduce((a, b) => a + b, 0) / vals.length
+  })()
 
   useEffect(() => {
     const s = loadSession()
@@ -127,6 +144,13 @@ export default function RatePage() {
             .join(', ')
         : null)
 
+    // If any tasks were rated, the session's rating is the average across
+    // them (rounded to one decimal). Otherwise fall back to the form slider.
+    const finalRating =
+      aggregateRating !== null
+        ? Math.round(aggregateRating * 10) / 10
+        : form.rating
+
     const { data: saved, error } = await supabase
       .from('sessions')
       .insert({
@@ -138,7 +162,7 @@ export default function RatePage() {
         actual_duration_minutes: finalActual,
         started_at: session.startedAt,
         ended_at: new Date().toISOString(),
-        rating: form.rating,
+        rating: finalRating,
         notes: form.notes.trim() || null,
         end_reason: finalEndReason,
       })
@@ -178,6 +202,7 @@ export default function RatePage() {
           position: t.position,
           completed_at: t.completedAt,
           duration_seconds: durationById.get(t.id) ?? null,
+          rating: taskRatings.has(t.id) ? taskRatings.get(t.id) : null,
         }))
       )
     }
@@ -212,6 +237,28 @@ export default function RatePage() {
       return `Planned ${formatDuration(session.plannedDurationMinutes)} session`
     }
     return `${formatDuration(resolveActualMinutes())} session`
+  })()
+
+  // Format a task's recorded duration for display next to its name.
+  const fmtTaskDur = (sec: number | null): string | null => {
+    if (sec === null) return null
+    if (sec < 60) return `${sec}s`
+    const m = Math.floor(sec / 60)
+    const s = sec % 60
+    return s === 0 ? `${m}m` : `${m}m ${s}s`
+  }
+  // Per-task duration map (same math as timer + session-detail views).
+  const taskDurationById = (() => {
+    const map = new Map<string, number>()
+    const completedSorted = [...session.tasks]
+      .filter((t) => t.completedAt !== null && t.elapsedSecondsAtCompletion !== null)
+      .sort((a, b) => (a.elapsedSecondsAtCompletion ?? 0) - (b.elapsedSecondsAtCompletion ?? 0))
+    let prev = 0
+    for (const t of completedSorted) {
+      map.set(t.id, Math.max(0, (t.elapsedSecondsAtCompletion ?? 0) - prev))
+      prev = t.elapsedSecondsAtCompletion ?? prev
+    }
+    return map
   })()
 
   const header = (
@@ -262,6 +309,83 @@ export default function RatePage() {
           )}
         </div>
       )}
+
+      {/* Per-task rating pips. When any task is rated, the aggregate replaces
+          the session-wide rating slider. Untouched pips just sit as ambient
+          dots — no interaction required to save. */}
+      {session.tasks.length > 0 && (
+        <div className="mt-6">
+          {aggregateRating !== null && (
+            <div className="mb-4">
+              <p className="font-sans text-sm text-text-muted mb-0.5">
+                {getRatingLabel(aggregateRating)}
+              </p>
+              <p className="font-numbers text-4xl font-semibold text-text-primary">
+                {aggregateRating.toFixed(1)}
+                <span className="text-text-light text-lg font-normal">/5</span>
+              </p>
+              <p className="font-sans text-xs text-text-light mt-1">
+                Session score — average of the tasks you rated
+              </p>
+            </div>
+          )}
+
+          <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-3">
+            Tasks — rate them individually (optional)
+          </p>
+          <ul>
+            {session.tasks.map((t) => {
+              const done = t.completedAt !== null
+              const dur = fmtTaskDur(taskDurationById.get(t.id) ?? null)
+              const current = taskRatings.get(t.id) ?? null
+              return (
+                <li
+                  key={t.id}
+                  className="py-2.5 border-b border-border-warm last:border-0"
+                >
+                  <div className="flex items-baseline gap-3 mb-1.5">
+                    <span
+                      className={`flex-1 font-sans text-sm ${
+                        done ? 'text-text-primary' : 'text-text-muted'
+                      }`}
+                    >
+                      {t.name}
+                    </span>
+                    {done && dur ? (
+                      <span className="font-numbers text-xs text-text-muted shrink-0">
+                        {dur}
+                      </span>
+                    ) : !done ? (
+                      <span className="font-sans text-xs text-text-light shrink-0">
+                        unfinished
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-1.5">
+                    {[0, 1, 2, 3, 4, 5].map((n) => {
+                      const isSelected = current === n
+                      return (
+                        <button
+                          key={n}
+                          onClick={() => setTaskRating(t.id, isSelected ? null : n)}
+                          aria-label={`Rate ${t.name} ${n} of 5`}
+                          className={`w-6 h-6 rounded-full text-xs font-numbers flex items-center justify-center transition-colors ${
+                            isSelected
+                              ? 'bg-coral text-white'
+                              : 'border border-border-warm text-text-light'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   )
 
@@ -278,6 +402,7 @@ export default function RatePage() {
         goalOptions={goalOptions}
         header={header}
         saveDisabled={session.isExpired && branchReason === null}
+        hideSessionRating={aggregateRating !== null}
       />
       {errorMsg && (
         <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm font-sans z-50">

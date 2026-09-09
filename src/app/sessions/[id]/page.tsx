@@ -15,6 +15,7 @@ interface TaskRow {
   position: number
   completed_at: string | null
   duration_seconds: number | null
+  rating: number | null
 }
 
 interface SessionDetail {
@@ -50,7 +51,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         goals(name),
         categories(name),
         session_distraction_tags(distraction_tags(id, name)),
-        session_tasks(id, name, position, completed_at, duration_seconds)
+        session_tasks(id, name, position, completed_at, duration_seconds, rating)
       `)
       .eq('id', sessionId)
       .order('position', { foreignTable: 'session_tasks', ascending: true })
@@ -173,6 +174,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     >
                       {t.name}
                     </span>
+                    {t.rating !== null && (
+                      <span className="font-numbers text-xs text-coral shrink-0">
+                        {t.rating.toFixed(0)}/5
+                      </span>
+                    )}
                     {isDone ? (
                       <span className="font-numbers text-xs text-text-muted shrink-0">
                         {fmtDur(t.duration_seconds) ?? '—'}

@@ -35,6 +35,7 @@ interface RatingFormProps {
   goalOptions?: GoalOption[]
   header?: React.ReactNode         // renders below focusText, above rating
   saveDisabled?: boolean           // gate save until required upstream state is set
+  hideSessionRating?: boolean      // suppress the session rating slider (e.g. when tasks are being rated)
 }
 
 type GoalMode = 'skip' | 'existing' | 'create'
@@ -53,6 +54,7 @@ export function RatingForm({
   goalOptions = [],
   header,
   saveDisabled = false,
+  hideSessionRating = false,
 }: RatingFormProps) {
   const [rating, setRating] = useState(initialRating)
   const [notes, setNotes] = useState(initialNotes)
@@ -102,9 +104,11 @@ export function RatingForm({
 
       {header && <div className="mb-8">{header}</div>}
 
-      <div className="mb-10">
-        <RatingSlider value={rating} onChange={setRating} />
-      </div>
+      {!hideSessionRating && (
+        <div className="mb-10">
+          <RatingSlider value={rating} onChange={setRating} />
+        </div>
+      )}
 
       <div className="mb-10">
         <DistractionTags

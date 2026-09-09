@@ -26,6 +26,7 @@ export function isTimerExpired(
 
 export function getRatingLabel(rating: number): string {
   const labels: Record<number, string> = {
+    0: 'None',
     1: 'Rough',
     2: 'Distracted',
     3: 'Okay',
