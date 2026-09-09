@@ -1,57 +1,72 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+
+/*
+ * All cycling placeholders across the app share one timer so they fade in and
+ * out in lockstep. The provider must wrap the tree that contains any
+ * <CyclingPlaceholder>s — safe to mount at the root layout.
+ */
+
+interface CyclingState {
+  tick: number
+  visible: boolean
+  fadeMs: number
+}
+
+const CyclingContext = createContext<CyclingState>({
+  tick: 0,
+  visible: true,
+  fadeMs: 500,
+})
+
+interface CyclingPlaceholderProviderProps {
+  children: ReactNode
+  intervalMs?: number
+  fadeMs?: number
+}
+
+export function CyclingPlaceholderProvider({
+  children,
+  intervalMs = 4500,
+  fadeMs = 500,
+}: CyclingPlaceholderProviderProps) {
+  const [state, setState] = useState<CyclingState>({ tick: 0, visible: true, fadeMs })
+
+  useEffect(() => {
+    // On each cycle: fade the CURRENT text out, wait fadeMs, swap index, fade in.
+    const cycle = () => {
+      setState((s) => ({ ...s, visible: false }))
+      setTimeout(() => {
+        setState((s) => ({ ...s, tick: s.tick + 1, visible: true }))
+      }, fadeMs)
+    }
+    const t = setInterval(cycle, intervalMs)
+    return () => clearInterval(t)
+  }, [intervalMs, fadeMs])
+
+  return <CyclingContext.Provider value={state}>{children}</CyclingContext.Provider>
+}
 
 interface CyclingPlaceholderProps {
   active: boolean               // typically: value === ''
   placeholders: string[]
-  intervalMs?: number           // ms between swaps
-  fadeMs?: number               // fade duration
-  className?: string            // must match the input's text styling (font-size, family)
+  className?: string            // must match the input's text styling
   alignTop?: boolean            // for textareas; default is vertical-center
   paddingClass?: string         // padding to match the input's own padding
 }
 
-/**
- * Overlays an input with a placeholder text that cross-fades through a list
- * of alternatives every few seconds. Native `placeholder` should be left empty
- * on the input; this overlay replaces it.
- *
- * Usage:
- *   <div className="relative">
- *     <input value={x} onChange={...} placeholder="" className="…" />
- *     <CyclingPlaceholder
- *       active={x === ''}
- *       placeholders={['e.g. Foo', 'e.g. Bar']}
- *       className="font-sans text-base"
- *     />
- *   </div>
- */
 export function CyclingPlaceholder({
   active,
   placeholders,
-  intervalMs = 3500,
-  fadeMs = 300,
   className = '',
   alignTop = false,
   paddingClass = '',
 }: CyclingPlaceholderProps) {
-  const [idx, setIdx] = useState(0)
-  const [visible, setVisible] = useState(true)
-
-  useEffect(() => {
-    if (!active || placeholders.length <= 1) return
-    const t = setInterval(() => {
-      setVisible(false)
-      const swap = setTimeout(() => {
-        setIdx((i) => (i + 1) % placeholders.length)
-        setVisible(true)
-      }, fadeMs)
-      return () => clearTimeout(swap)
-    }, intervalMs)
-    return () => clearInterval(t)
-  }, [active, placeholders.length, intervalMs, fadeMs])
+  const { tick, visible, fadeMs } = useContext(CyclingContext)
 
   if (!active || placeholders.length === 0) return null
+
+  const idx = tick % placeholders.length
 
   return (
     <span

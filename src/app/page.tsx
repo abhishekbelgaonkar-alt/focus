@@ -196,39 +196,36 @@ function HomePageInner() {
   })
 
   return (
-    <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-md mx-auto">
-      {/* ── Top nav ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-6 relative z-40">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.push('/goals')}
-            className="font-sans text-sm text-text-muted"
-          >
-            All goals
-          </button>
-          <button
-            onClick={() => setHelpOpen(true)}
-            className="font-sans text-sm text-text-muted"
-          >
-            How it works
-          </button>
+    <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-3xl mx-auto">
+      {/* ── Top nav: All goals · How it works · [search] · Profile ─────── */}
+      <div className="flex items-center gap-4 mb-6 relative z-40">
+        <button
+          onClick={() => router.push('/goals')}
+          className="font-sans text-sm text-text-muted whitespace-nowrap shrink-0"
+        >
+          All goals
+        </button>
+        <button
+          onClick={() => setHelpOpen(true)}
+          className="font-sans text-sm text-text-muted whitespace-nowrap shrink-0"
+        >
+          How it works
+        </button>
+        <div className="flex-1 min-w-0">
+          <SearchBar onOpenChange={setSearchOpen} />
         </div>
         <button
           onClick={() => router.push('/profile')}
-          className="font-sans text-sm text-text-muted"
+          className="font-sans text-sm text-text-muted whitespace-nowrap shrink-0"
         >
           Profile
         </button>
       </div>
 
-      {/* ── Date + search — search stays anchored here even when open ───── */}
-      <p className="font-sans text-sm text-text-muted mb-3 relative z-40">
+      {/* ── Date ─────────────────────────────────────────────────────────── */}
+      <p className="font-sans text-sm text-text-muted mb-8 relative z-40">
         {todayDate}
       </p>
-
-      <div className="mb-8">
-        <SearchBar onOpenChange={setSearchOpen} />
-      </div>
 
       {/* ── Everything below dims + blurs when search is open ──────────── */}
       <div
@@ -236,8 +233,8 @@ function HomePageInner() {
           searchOpen ? 'blur-sm opacity-40 pointer-events-none select-none' : ''
         }`}
       >
-        {/* Timer setup */}
-        <div className="mb-10">
+        {/* Timer setup — narrower centered block so it stays intimate */}
+        <div className="mb-10 max-w-md mx-auto">
           <label className="block font-sans text-lg font-medium text-text-primary mb-1">
             What are you working on?
           </label>
@@ -383,7 +380,7 @@ function HomePageInner() {
           </button>
         </div>
 
-        {/* Today's plan */}
+        {/* Today's plan — full width */}
         {todayGoals.length > 0 && (
           <div className="bg-coral-light rounded-xl p-4 mb-8">
             <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
@@ -403,58 +400,68 @@ function HomePageInner() {
           </div>
         )}
 
-        {/* Pick up where you left off */}
-        {recentGoals.length > 0 && (
-          <div>
-            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
-              Or continue a goal you&apos;ve been working on
-            </p>
-            <div className="flex flex-col gap-4">
-              {recentGoals.map((g, i) => (
-                <div key={g.goal_id} className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="font-sans text-sm font-medium text-text-primary truncate">
-                      {g.name}
-                    </p>
-                    <p className="font-sans text-xs text-text-muted mt-0.5">
-                      {formatDuration(g.total_minutes)} across {g.session_count}{' '}
-                      {g.session_count === 1 ? 'session' : 'sessions'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleContinueGoal(g.goal_id)}
-                    className={`shrink-0 px-4 py-2 rounded-pill font-sans text-sm font-medium ${
-                      i === 0
-                        ? 'bg-coral text-white'
-                        : 'border-[1.5px] border-coral text-coral'
-                    }`}
-                  >
-                    Continue
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Recent sessions — includes uncategorized/orphan saves so they're findable */}
-        {recentSessions.length > 0 && (
-          <div className="mt-10">
-            <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
-              Recent sessions
-            </p>
+        {/* Two-column: Continue goals (LEFT) | Recent sessions (RIGHT).
+            On mobile they stack — goals first, sessions second. */}
+        {(recentGoals.length > 0 || recentSessions.length > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-10">
+            {/* LEFT — Continue a goal */}
             <div>
-              {recentSessions.map((s) => (
-                <SessionRow
-                  key={s.id}
-                  id={s.id}
-                  sessionName={s.session_name}
-                  startedAt={s.started_at}
-                  actualDurationMinutes={s.actual_duration_minutes}
-                  rating={s.rating}
-                  onClick={() => router.push(`/sessions/${s.id}`)}
-                />
-              ))}
+              {recentGoals.length > 0 && (
+                <>
+                  <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
+                    Continue a goal you&apos;ve been working on
+                  </p>
+                  <div className="flex flex-col gap-4">
+                    {recentGoals.map((g, i) => (
+                      <div key={g.goal_id} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-sans text-sm font-medium text-text-primary truncate">
+                            {g.name}
+                          </p>
+                          <p className="font-sans text-xs text-text-muted mt-0.5">
+                            {formatDuration(g.total_minutes)} across {g.session_count}{' '}
+                            {g.session_count === 1 ? 'session' : 'sessions'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleContinueGoal(g.goal_id)}
+                          className={`shrink-0 px-4 py-2 rounded-pill font-sans text-sm font-medium ${
+                            i === 0
+                              ? 'bg-coral text-white'
+                              : 'border-[1.5px] border-coral text-coral'
+                          }`}
+                        >
+                          Continue
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* RIGHT — Recent sessions (includes uncategorized saves) */}
+            <div>
+              {recentSessions.length > 0 && (
+                <>
+                  <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
+                    Recent sessions
+                  </p>
+                  <div>
+                    {recentSessions.map((s) => (
+                      <SessionRow
+                        key={s.id}
+                        id={s.id}
+                        sessionName={s.session_name}
+                        startedAt={s.started_at}
+                        actualDurationMinutes={s.actual_duration_minutes}
+                        rating={s.rating}
+                        onClick={() => router.push(`/sessions/${s.id}`)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

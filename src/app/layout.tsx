@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Outfit, Quicksand } from 'next/font/google'
 import { AuthProvider } from '@/components/AuthProvider'
+import { CyclingPlaceholderProvider } from '@/components/CyclingPlaceholder'
 import './globals.css'
 
 const outfit = Outfit({
@@ -27,7 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${outfit.variable} ${quicksand.variable}`}>
       <body className="font-sans bg-cream text-text-primary min-h-screen">
         <AuthProvider>
-          {children}
+          <CyclingPlaceholderProvider>
+            {children}
+          </CyclingPlaceholderProvider>
         </AuthProvider>
       </body>
     </html>
