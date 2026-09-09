@@ -1,7 +1,15 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import type { PeriodType } from '@/lib/types'
+
+const NOTE_PLACEHOLDERS = [
+  'Write anything — mood, context, distractions…',
+  'Any mood, energy, or context worth remembering',
+  'Notes for your future self',
+  'What was different about this period?',
+]
 
 interface PeriodNoteBoxProps {
   periodType: PeriodType
@@ -66,16 +74,24 @@ export function PeriodNoteBox({ periodType, periodDate, title, onClose }: Period
         <p className="font-sans text-xs font-medium text-text-muted">{title}</p>
         <button onClick={onClose} className="text-text-light text-xl leading-none">×</button>
       </div>
-      <textarea
-        ref={textareaRef}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={handleSave}
-        placeholder="Write anything — mood, context, distractions…"
-        rows={3}
-        className="w-full bg-transparent font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none resize-none"
-      />
+      <div className="relative">
+        <textarea
+          ref={textareaRef}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleSave}
+          placeholder=""
+          rows={3}
+          className="w-full bg-transparent font-sans text-sm text-text-primary focus:outline-none resize-none"
+        />
+        <CyclingPlaceholder
+          active={note === ''}
+          placeholders={NOTE_PLACEHOLDERS}
+          className="font-sans text-sm"
+          alignTop
+        />
+      </div>
       {saving && <p className="font-sans text-xs text-text-muted mt-1">Saving…</p>}
     </div>
   )

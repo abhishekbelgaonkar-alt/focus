@@ -3,7 +3,15 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { HighlightedText } from '@/components/HighlightedText'
+import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import { formatDate, getSnippet } from '@/lib/format'
+
+const SEARCH_PLACEHOLDERS = [
+  'Search through your session names, notes, etc.',
+  'Find a session by keyword',
+  'Search a note or session name',
+  'Look up past sessions',
+]
 
 interface SearchResult {
   id: string
@@ -103,16 +111,23 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search through your session names, notes, etc."
-            className="flex-1 bg-transparent font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none"
-          />
+          <div className="flex-1 relative">
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={handleKeyDown}
+              placeholder=""
+              className="w-full bg-transparent font-sans text-sm text-text-primary focus:outline-none"
+            />
+            <CyclingPlaceholder
+              active={query === ''}
+              placeholders={SEARCH_PLACEHOLDERS}
+              className="font-sans text-sm"
+            />
+          </div>
           {isOpen && (
             <button
               onClick={handleClose}

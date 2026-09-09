@@ -2,8 +2,24 @@
 import { useState } from 'react'
 import { RatingSlider } from '@/components/RatingSlider'
 import { DistractionTags } from '@/components/DistractionTags'
+import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import { getNotePlaceholder } from '@/lib/timer'
 import type { DistractionTag } from '@/lib/types'
+
+const SESSION_NAME_PLACEHOLDERS = [
+  'e.g. Fix login bug',
+  'e.g. Morning deep work',
+  'e.g. Chapter 1 draft',
+  'e.g. Read section 3.2',
+  'e.g. Design review prep',
+]
+
+const NEW_GOAL_PLACEHOLDERS = [
+  'e.g. Finals prep',
+  'e.g. Portfolio site',
+  'e.g. Learn Spanish',
+  'e.g. Ship v1',
+]
 
 export interface GoalOption {
   id: string
@@ -137,13 +153,21 @@ export function RatingForm({
           Give this session a name{' '}
           <span className="text-text-light">(optional)</span>
         </label>
-        <input
-          type="text"
-          value={sessionName}
-          onChange={(e) => setSessionName(e.target.value)}
-          placeholder="e.g. Fix login bug"
-          className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={sessionName}
+            onChange={(e) => setSessionName(e.target.value)}
+            placeholder=""
+            className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
+          />
+          <CyclingPlaceholder
+            active={sessionName === ''}
+            placeholders={SESSION_NAME_PLACEHOLDERS}
+            className="font-sans text-sm"
+            paddingClass="pb-1"
+          />
+        </div>
       </div>
 
       {showGoalPrompt && (
@@ -207,28 +231,44 @@ export function RatingForm({
               )}
 
               {goalMode === 'create' && (
-                <input
-                  type="text"
-                  value={goalText}
-                  onChange={(e) => setGoalText(e.target.value)}
-                  placeholder="e.g. Finals prep"
-                  className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={goalText}
+                    onChange={(e) => setGoalText(e.target.value)}
+                    placeholder=""
+                    className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
+                  />
+                  <CyclingPlaceholder
+                    active={goalText === ''}
+                    placeholders={NEW_GOAL_PLACEHOLDERS}
+                    className="font-sans text-sm"
+                    paddingClass="pb-1"
+                  />
+                </div>
               )}
             </>
           ) : (
-            <input
-              type="text"
-              value={goalText}
-              onChange={(e) => {
-                setGoalText(e.target.value)
-                // First-time users: implicitly "create" mode once they type
-                if (e.target.value && goalMode !== 'create') setGoalMode('create')
-                if (!e.target.value) setGoalMode('skip')
-              }}
-              placeholder="e.g. Finals prep"
-              className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={goalText}
+                onChange={(e) => {
+                  setGoalText(e.target.value)
+                  // First-time users: implicitly "create" mode once they type
+                  if (e.target.value && goalMode !== 'create') setGoalMode('create')
+                  if (!e.target.value) setGoalMode('skip')
+                }}
+                placeholder=""
+                className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
+              />
+              <CyclingPlaceholder
+                active={goalText === ''}
+                placeholders={NEW_GOAL_PLACEHOLDERS}
+                className="font-sans text-sm"
+                paddingClass="pb-1"
+              />
+            </div>
           )}
         </div>
       )}

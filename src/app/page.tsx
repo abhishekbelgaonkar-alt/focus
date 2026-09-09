@@ -6,6 +6,33 @@ import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
 import { SessionRow } from '@/components/SessionRow'
 import { HowItWorksModal } from '@/components/HowItWorksModal'
+import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
+
+const FOCUS_PLACEHOLDERS = [
+  'e.g. Finish thermodynamics ch. 1',
+  'e.g. Refactor login component',
+  'e.g. Practice guitar chord changes',
+  'e.g. Write chapter 3 outline',
+  'e.g. Review yesterday’s math problems',
+  'e.g. Draft cover letter',
+]
+
+const TASK_PLACEHOLDERS = [
+  'e.g. Paper 1',
+  'e.g. Read section 3.2',
+  'e.g. Draft outline',
+  'e.g. Solve 5 problems',
+  'e.g. Review flashcards',
+  'e.g. Warm up scales',
+]
+
+const NEW_GOAL_PLACEHOLDERS = [
+  'e.g. Finals prep',
+  'e.g. Portfolio site',
+  'e.g. Learn Spanish',
+  'e.g. Master’s thesis',
+  'e.g. Ship v1',
+]
 import { saveSession } from '@/lib/session-state'
 import { formatDuration } from '@/lib/format'
 import type { Weekday } from '@/lib/types'
@@ -42,9 +69,28 @@ function HomePageInner() {
   // Timer setup state — lives on the home screen.
   const [duration, setDuration] = useState(DEFAULT_DURATION)
   const [focusText, setFocusText] = useState('')
-  const [resolvedGoalId, setResolvedGoalId] = useState<string | null>(null)
   const [taskDrafts, setTaskDrafts] = useState<{ id: string; name: string }[]>([])
   const [taskInput, setTaskInput] = useState('')
+  // Goal picker: none | new (typing a fresh name) | existing (linked to a real goal)
+  type GoalMode =
+    | { kind: 'none' }
+    | { kind: 'new' }
+    | { kind: 'existing'; id: string; name: string }
+  const [goalMode, setGoalMode] = useState<GoalMode>({ kind: 'none' })
+  const [newGoalName, setNewGoalName] = useState('')
+
+  const selectExistingGoal = async (id: string, name: string) => {
+    setGoalMode({ kind: 'existing', id, name })
+    if (!focusText.trim()) setFocusText(name)
+    try {
+      const { data: g } = await supabase
+        .from('goals')
+        .select('last_used_duration_minutes')
+        .eq('id', id)
+        .single()
+      if (g?.last_used_duration_minutes) setDuration(g.last_used_duration_minutes)
+    } catch { /* ignore */ }
+  }
 
   const addTask = () => {
     const name = taskInput.trim()
@@ -83,7 +129,7 @@ function HomePageInner() {
         if (preselectedGoalId) {
           const match = all.find((g) => g.goal_id === preselectedGoalId)
           if (match) {
-            setResolvedGoalId(preselectedGoalId)
+            setGoalMode({ kind: 'existing', id: preselectedGoalId, name: match.name })
             setFocusText(match.name)
             const { data: g } = await supabase
               .from('goals')
@@ -101,12 +147,30 @@ function HomePageInner() {
     })()
   }, [preselectedGoalId])
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    let goalId: string | null = null
+
+    if (goalMode.kind === 'existing') {
+      goalId = goalMode.id
+    } else if (goalMode.kind === 'new' && newGoalName.trim()) {
+      // Create the goal upfront so this session (and subsequent ones on it)
+      // roll up under it in All Goals.
+      const { data: userData } = await supabase.auth.getUser()
+      if (userData?.user) {
+        const { data: newGoal } = await supabase
+          .from('goals')
+          .insert({ user_id: userData.user.id, name: newGoalName.trim() })
+          .select()
+          .single()
+        goalId = newGoal?.id ?? null
+      }
+    }
+
     saveSession({
       plannedDurationMinutes: duration,
       startedAt: new Date().toISOString(),
       setupFocusText: focusText.trim() || null,
-      goalId: resolvedGoalId,
+      goalId,
       categoryId: null,
       endReason: null,
       actualDurationMinutes: null,
@@ -175,21 +239,89 @@ function HomePageInner() {
         {/* Timer setup */}
         <div className="mb-10">
           <label className="block font-sans text-lg font-medium text-text-primary mb-1">
-            What are you focusing on?
+            What are you working on?
           </label>
           <p className="text-sm text-text-muted mb-4">
-            Optional — you can skip this and add it after
+            Becomes the session&apos;s name — link a goal below to track it over time
           </p>
-          <input
-            type="text"
-            value={focusText}
-            onChange={(e) => {
-              setFocusText(e.target.value)
-              if (resolvedGoalId) setResolvedGoalId(null)
-            }}
-            placeholder="e.g. Finish thermodynamics ch. 1"
-            className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-base mb-8"
-          />
+          <div className="relative mb-8">
+            <input
+              type="text"
+              value={focusText}
+              onChange={(e) => setFocusText(e.target.value)}
+              placeholder=""
+              className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary focus:outline-none focus:border-coral font-sans text-base"
+            />
+            <CyclingPlaceholder
+              active={focusText === ''}
+              placeholders={FOCUS_PLACEHOLDERS}
+              className="font-sans text-base"
+              paddingClass="pb-2"
+            />
+          </div>
+
+          {/* Goal picker — pick existing, create new, or skip */}
+          <div className="mb-8">
+            <p className="font-sans text-sm text-text-muted mb-3">
+              Goal <span className="text-text-light">(optional)</span>
+            </p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                onClick={() => setGoalMode({ kind: 'none' })}
+                className={`px-3 py-1.5 rounded-pill text-sm font-sans border-[1.5px] ${
+                  goalMode.kind === 'none'
+                    ? 'bg-coral-light border-coral text-tag-text'
+                    : 'bg-transparent border-border-warm text-text-muted'
+                }`}
+              >
+                None
+              </button>
+              {goalStats.map((g) => {
+                const isSelected = goalMode.kind === 'existing' && goalMode.id === g.goal_id
+                return (
+                  <button
+                    key={g.goal_id}
+                    onClick={() => selectExistingGoal(g.goal_id, g.name)}
+                    className={`px-3 py-1.5 rounded-pill text-sm font-sans border-[1.5px] ${
+                      isSelected
+                        ? 'bg-coral-light border-coral text-tag-text'
+                        : 'bg-transparent border-border-warm text-text-muted'
+                    }`}
+                  >
+                    {g.name}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => setGoalMode({ kind: 'new' })}
+                className={`px-3 py-1.5 rounded-pill text-sm font-sans border-[1.5px] border-dashed ${
+                  goalMode.kind === 'new'
+                    ? 'border-coral text-coral'
+                    : 'border-border-warm text-text-muted'
+                }`}
+              >
+                + New goal
+              </button>
+            </div>
+            {goalMode.kind === 'new' && (
+              <div className="relative">
+                <input
+                  autoFocus
+                  type="text"
+                  value={newGoalName}
+                  onChange={(e) => setNewGoalName(e.target.value)}
+                  placeholder=""
+                  className="w-full bg-transparent border-b border-border-warm pb-1 text-text-primary focus:outline-none focus:border-coral font-sans text-sm"
+                />
+                <CyclingPlaceholder
+                  active={newGoalName === ''}
+                  placeholders={NEW_GOAL_PLACEHOLDERS}
+                  className="font-sans text-sm"
+                  paddingClass="pb-1"
+                />
+              </div>
+            )}
+          </div>
 
           {/* Optional tasks — checked off during the timer */}
           <div className="mb-8">
@@ -219,14 +351,26 @@ function HomePageInner() {
                 ))}
               </ol>
             )}
-            <input
-              type="text"
-              value={taskInput}
-              onChange={(e) => setTaskInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTask())}
-              placeholder={taskDrafts.length === 0 ? 'e.g. Paper 1' : 'Add another task'}
-              className="w-full bg-transparent border-b border-border-warm pb-1 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-sm"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={taskInput}
+                onChange={(e) => setTaskInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTask())}
+                placeholder=""
+                className="w-full bg-transparent border-b border-border-warm pb-1 text-text-primary focus:outline-none focus:border-coral font-sans text-sm"
+              />
+              <CyclingPlaceholder
+                active={taskInput === ''}
+                placeholders={
+                  taskDrafts.length === 0
+                    ? TASK_PLACEHOLDERS
+                    : ['Add another task', 'Add another', 'One more…', 'Another step']
+                }
+                className="font-sans text-sm"
+                paddingClass="pb-1"
+              />
+            </div>
           </div>
 
           <DurationPicker value={duration} onChange={setDuration} max={180} />

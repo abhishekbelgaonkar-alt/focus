@@ -2,8 +2,17 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DurationPicker } from '@/components/DurationPicker'
+import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import { saveSession } from '@/lib/session-state'
 import { createClient } from '@/lib/supabase/client'
+
+const FOCUS_PLACEHOLDERS = [
+  'e.g. Finish thermodynamics ch. 1',
+  'e.g. Refactor login component',
+  'e.g. Practice guitar chord changes',
+  'e.g. Write chapter 3 outline',
+  'e.g. Draft cover letter',
+]
 
 const DEFAULT_DURATION = 3
 
@@ -58,13 +67,21 @@ function SetupPageInner() {
         <p className="text-sm text-text-muted mb-4">
           Optional — you can skip this and add it after
         </p>
-        <input
-          type="text"
-          value={focusText}
-          onChange={(e) => setFocusText(e.target.value)}
-          placeholder="e.g. Finish thermodynamics ch. 1"
-          className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral font-sans text-base"
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={focusText}
+            onChange={(e) => setFocusText(e.target.value)}
+            placeholder=""
+            className="w-full bg-transparent border-b border-border-warm pb-2 text-text-primary focus:outline-none focus:border-coral font-sans text-base"
+          />
+          <CyclingPlaceholder
+            active={focusText === ''}
+            placeholders={FOCUS_PLACEHOLDERS}
+            className="font-sans text-base"
+            paddingClass="pb-2"
+          />
+        </div>
       </div>
 
       <div className="mb-12">

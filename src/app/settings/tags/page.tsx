@@ -2,7 +2,16 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import type { DistractionTag } from '@/lib/types'
+
+const TAG_PLACEHOLDERS = [
+  'Add a tag',
+  'e.g. Slack pings',
+  'e.g. Music/video',
+  'e.g. Overheating',
+  'e.g. Coffee break',
+]
 
 export default function TagsPage() {
   const router = useRouter()
@@ -74,14 +83,22 @@ export default function TagsPage() {
 
       {/* Add new */}
       <div className="flex gap-2 items-end mb-8 pb-6 border-b border-border-warm">
-        <input
-          type="text"
-          value={newTag}
-          onChange={(e) => setNewTag(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder="Add a tag"
-          className="flex-1 bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
-        />
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder=""
+            className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
+          />
+          <CyclingPlaceholder
+            active={newTag === ''}
+            placeholders={TAG_PLACEHOLDERS}
+            className="font-sans text-sm"
+            paddingClass="pb-1"
+          />
+        </div>
         <button
           onClick={handleAdd}
           disabled={!newTag.trim()}
