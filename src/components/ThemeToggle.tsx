@@ -85,19 +85,23 @@ export function ThemeToggle() {
                 key={t.key}
                 type="button"
                 onClick={() => pick(t.key)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left font-sans text-sm hover:bg-coral-light/60 ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left font-sans text-sm hover:bg-coral-light cursor-pointer ${
                   isCurrent ? 'text-coral' : 'text-text-primary'
                 }`}
               >
-                {/* Children are pointer-events-none so the button itself is
-                    always the click target — avoids target-mismatch bugs
-                    where the outside-click detector saw a child span. */}
+                {/* Children get inline pointer-events:none so the button is
+                    always the event target across the full row — no matter
+                    where inside the row the mouse lands. */}
                 <span
-                  className="w-3 h-3 rounded-full border border-border-warm shrink-0 pointer-events-none"
-                  style={{ backgroundColor: t.swatch }}
+                  className="w-3 h-3 rounded-full border border-border-warm shrink-0"
+                  style={{ backgroundColor: t.swatch, pointerEvents: 'none' }}
                 />
-                <span className="flex-1 pointer-events-none">{t.label}</span>
-                {isCurrent && <span className="pointer-events-none">✓</span>}
+                <span className="flex-1" style={{ pointerEvents: 'none' }}>
+                  {t.label}
+                </span>
+                {isCurrent && (
+                  <span style={{ pointerEvents: 'none' }}>✓</span>
+                )}
               </button>
             )
           })}
