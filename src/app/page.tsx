@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
 import { SessionRow } from '@/components/SessionRow'
+import { HowItWorksModal } from '@/components/HowItWorksModal'
 import { saveSession } from '@/lib/session-state'
 import { formatDuration } from '@/lib/format'
 import type { Weekday } from '@/lib/types'
@@ -36,6 +37,7 @@ function HomePageInner() {
     { id: string; session_name: string | null; started_at: string; actual_duration_minutes: number; rating: number | null }[]
   >([])
   const [searchOpen, setSearchOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   // Timer setup state — lives on the home screen.
   const [duration, setDuration] = useState(DEFAULT_DURATION)
@@ -133,12 +135,20 @@ function HomePageInner() {
     <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-md mx-auto">
       {/* ── Top nav ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6 relative z-40">
-        <button
-          onClick={() => router.push('/goals')}
-          className="font-sans text-sm text-text-muted"
-        >
-          All goals
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push('/goals')}
+            className="font-sans text-sm text-text-muted"
+          >
+            All goals
+          </button>
+          <button
+            onClick={() => setHelpOpen(true)}
+            className="font-sans text-sm text-text-muted"
+          >
+            How it works
+          </button>
+        </div>
         <button
           onClick={() => router.push('/profile')}
           className="font-sans text-sm text-text-muted"
@@ -151,30 +161,6 @@ function HomePageInner() {
       <p className="font-sans text-sm text-text-muted mb-3 relative z-40">
         {todayDate}
       </p>
-
-      {/* First-time explainer — self-hides once the user has any goal */}
-      {goalStats.length === 0 && (
-        <div className="bg-coral-light rounded-xl p-4 mb-6 relative z-40">
-          <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
-            How Focus works
-          </p>
-          <div className="flex flex-col gap-2.5 font-sans text-sm text-text-primary leading-relaxed">
-            <p>
-              A <strong>session</strong> is one timed block of work — with tasks, a rating, and notes.
-              You start one with the timer below.
-            </p>
-            <p>
-              A <strong>goal</strong> groups sessions on a shared project — like <em>&ldquo;Ship v1&rdquo;</em> or{' '}
-              <em>&ldquo;Learn Spanish&rdquo;</em>. Assign one on the Save screen and it&apos;ll show up in{' '}
-              <strong>All goals</strong> with running totals.
-            </p>
-            <p>
-              Give a goal a <strong>schedule</strong> (Mon / Wed / Fri, etc.) and it&apos;ll auto-appear as{' '}
-              <em>Today&apos;s plan</em> on the days you set.
-            </p>
-          </div>
-        </div>
-      )}
 
       <div className="mb-8">
         <SearchBar onOpenChange={setSearchOpen} />
@@ -329,6 +315,8 @@ function HomePageInner() {
           </div>
         )}
       </div>
+
+      <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </main>
   )
 }
