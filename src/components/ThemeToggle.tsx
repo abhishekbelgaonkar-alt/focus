@@ -34,20 +34,28 @@ export function ThemeToggle() {
     else setCurrent('cream')
   }, [])
 
-  // Close popover on outside click / Escape
+  // Close popover on outside click / Escape. Uses the `click` event (fires
+  // AFTER React's synthetic onClick) plus a setTimeout to skip the current
+  // event loop tick, so the same click that opens the popover can't
+  // immediately close it, and clicks on the popover options can complete
+  // their React handler before the outside detector runs.
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    const onClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
+    let handler: ((e: MouseEvent) => void) | null = null
+    const attachTimer = window.setTimeout(() => {
+      handler = (e: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+          setOpen(false)
+        }
       }
-    }
+      window.addEventListener('click', handler)
+    }, 0)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     window.addEventListener('keydown', onKey)
-    window.addEventListener('mousedown', onClick)
     return () => {
+      clearTimeout(attachTimer)
+      if (handler) window.removeEventListener('click', handler)
       window.removeEventListener('keydown', onKey)
-      window.removeEventListener('mousedown', onClick)
     }
   }, [open])
 
@@ -60,6 +68,7 @@ export function ThemeToggle() {
   return (
     <div ref={containerRef} className="relative">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         className="font-sans text-sm text-text-muted whitespace-nowrap"
         aria-label="Choose theme"
@@ -68,23 +77,27 @@ export function ThemeToggle() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 bg-cream border border-border-warm rounded-xl p-1.5 z-50 min-w-[160px] shadow-sm">
+        <div className="absolute right-0 top-full mt-2 bg-cream border border-border-warm rounded-xl p-1.5 z-50 min-w-[180px] shadow-sm">
           {THEMES.map((t) => {
             const isCurrent = current === t.key
             return (
               <button
                 key={t.key}
+                type="button"
                 onClick={() => pick(t.key)}
-                className={`flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-left font-sans text-sm ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left font-sans text-sm hover:bg-coral-light/60 ${
                   isCurrent ? 'text-coral' : 'text-text-primary'
                 }`}
               >
+                {/* Children are pointer-events-none so the button itself is
+                    always the click target — avoids target-mismatch bugs
+                    where the outside-click detector saw a child span. */}
                 <span
-                  className="w-3 h-3 rounded-full border border-border-warm shrink-0"
+                  className="w-3 h-3 rounded-full border border-border-warm shrink-0 pointer-events-none"
                   style={{ backgroundColor: t.swatch }}
                 />
-                <span className="flex-1">{t.label}</span>
-                {isCurrent && <span className="text-coral">✓</span>}
+                <span className="flex-1 pointer-events-none">{t.label}</span>
+                {isCurrent && <span className="pointer-events-none">✓</span>}
               </button>
             )
           })}
