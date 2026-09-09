@@ -605,60 +605,72 @@ function HomePageInner() {
             </div>
           )}
 
-          {incompleteTasks.length > 0 && (
-            <div>
-              <div className="flex items-baseline justify-between mb-2">
-                <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
-                  Unfinished tasks
-                </p>
+          {/* Always visible so users can discover the feature. Empty state
+              explains what belongs here; loaded state shows a preview. */}
+          <div>
+            <div className="flex items-baseline justify-between mb-2">
+              <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
+                Unfinished tasks
+              </p>
+              {incompleteTasks.length > 0 && (
                 <button
                   onClick={() => router.push('/incomplete-tasks')}
                   className="font-sans text-xs text-coral"
                 >
                   View all →
                 </button>
-              </div>
-              <div>
-                {incompleteTasks.map((t) => {
-                  const s = t.sessions
-                  const context =
-                    s?.goals?.name ??
-                    s?.categories?.name ??
-                    s?.session_name ??
-                    null
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => s && router.push(`/sessions/${s.id}`)}
-                      className="w-full text-left py-3.5 border-b border-border-warm last:border-0 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-sans text-sm font-medium text-text-primary truncate">
-                          {t.name}
-                        </p>
-                        {context && (
-                          <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
-                            {context}
-                          </p>
-                        )}
-                      </div>
-                      <span className="shrink-0 font-sans text-xs text-coral">
-                        Open →
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-              {incompleteTaskCount > incompleteTasks.length && (
-                <button
-                  onClick={() => router.push('/incomplete-tasks')}
-                  className="mt-3 font-sans text-xs text-text-muted w-full text-left"
-                >
-                  + {incompleteTaskCount - incompleteTasks.length} more →
-                </button>
               )}
             </div>
-          )}
+
+            {incompleteTasks.length === 0 ? (
+              <p className="font-sans text-xs text-text-light leading-relaxed py-2">
+                Anything you don&apos;t check off before saving a session
+                lands here so it&apos;s easy to come back to.
+              </p>
+            ) : (
+              <>
+                <div>
+                  {incompleteTasks.map((t) => {
+                    const s = t.sessions
+                    const context =
+                      s?.goals?.name ??
+                      s?.categories?.name ??
+                      s?.session_name ??
+                      null
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => s && router.push(`/sessions/${s.id}`)}
+                        className="w-full text-left py-3.5 border-b border-border-warm last:border-0 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-sans text-sm font-medium text-text-primary truncate">
+                            {t.name}
+                          </p>
+                          {context && (
+                            <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
+                              {context}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 font-sans text-xs text-coral">
+                          Open →
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {incompleteTaskCount > incompleteTasks.length && (
+                  <button
+                    onClick={() => router.push('/incomplete-tasks')}
+                    className="mt-3 font-sans text-xs text-text-muted w-full text-left"
+                  >
+                    + {incompleteTaskCount - incompleteTasks.length} more →
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* RIGHT column — History (col 3 on md+). Header links to the
