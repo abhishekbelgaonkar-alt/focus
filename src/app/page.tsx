@@ -30,7 +30,6 @@ function HomePageInner() {
   const preselectedGoalId = searchParams.get('goalId')
   const supabase = createClient()
 
-  const [loading, setLoading] = useState(true)
   const [goalStats, setGoalStats] = useState<GoalStat[]>([])
   const [todayGoals, setTodayGoals] = useState<GoalStat[]>([])
   const [recentSessions, setRecentSessions] = useState<
@@ -96,8 +95,6 @@ function HomePageInner() {
         }
       } catch {
         /* falls through to defaults */
-      } finally {
-        setLoading(false)
       }
     })()
   }, [preselectedGoalId])
@@ -126,8 +123,6 @@ function HomePageInner() {
   const handleContinueGoal = (goalId: string) => {
     router.push(`/?goalId=${goalId}`)
   }
-
-  if (loading) return null
 
   const recentGoals = goalStats.filter((g) => g.last_session_at !== null).slice(0, 3)
   const todayDate = new Date().toLocaleDateString('en-US', {
