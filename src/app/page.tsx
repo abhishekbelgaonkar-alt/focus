@@ -7,6 +7,9 @@ import { SearchBar } from '@/components/SearchBar'
 import { SessionRow } from '@/components/SessionRow'
 import { HowItWorksModal } from '@/components/HowItWorksModal'
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
+import { timeAgo } from '@/lib/format'
+import { getGoalColor } from '@/lib/goal-color'
+import { calcDayStreak } from '@/lib/stats'
 
 const FOCUS_PLACEHOLDERS = [
   'e.g. Finish thermodynamics ch. 1',
@@ -41,6 +44,7 @@ interface GoalStat {
   goal_id: string
   name: string
   status: string
+  color: string | null
   schedule: string[] | null
   created_at: string
   session_count: number
@@ -85,6 +89,7 @@ function HomePageInner() {
     }>
   >([])
   const [incompleteTaskCount, setIncompleteTaskCount] = useState(0)
+  const [goalStreaks, setGoalStreaks] = useState<Map<string, number>>(new Map())
   const [incompleteTasks, setIncompleteTasks] = useState<
     Array<{
       id: string
@@ -194,6 +199,32 @@ function HomePageInner() {
         setIncompleteTasks(
           (incTasks ?? []) as unknown as typeof incompleteTasks
         )
+
+        // Per-goal streak for the top few recent goals shown in Continue-a-goal.
+        const topGoalIds = all
+          .filter((g) => g.last_session_at !== null)
+          .slice(0, 3)
+          .map((g) => g.goal_id)
+        if (topGoalIds.length > 0) {
+          const { data: goalSessions } = await supabase
+            .from('sessions')
+            .select('goal_id, started_at')
+            .eq('user_id', data.user.id)
+            .eq('status', 'completed')
+            .in('goal_id', topGoalIds)
+            .order('started_at', { ascending: false })
+            .limit(500)
+          const grouped = new Map<string, string[]>()
+          for (const row of (goalSessions ?? []) as { goal_id: string; started_at: string }[]) {
+            if (!grouped.has(row.goal_id)) grouped.set(row.goal_id, [])
+            grouped.get(row.goal_id)!.push(row.started_at)
+          }
+          const streaks = new Map<string, number>()
+          for (const [gid, dates] of grouped) {
+            streaks.set(gid, calcDayStreak(dates))
+          }
+          setGoalStreaks(streaks)
+        }
 
         const today = WEEKDAYS[new Date().getDay()]
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
@@ -586,26 +617,38 @@ function HomePageInner() {
                 </button>
               </div>
               <div>
-                {recentGoals.map((g) => (
-                  <button
-                    key={g.goal_id}
-                    onClick={() => handleContinueGoal(g.goal_id)}
-                    className="w-full text-left py-3.5 border-b border-border-warm last:border-0 flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-sans text-sm font-medium text-text-primary truncate">
-                        {g.name}
-                      </p>
-                      <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
-                        {formatDuration(g.total_minutes)} · {g.session_count}{' '}
-                        {g.session_count === 1 ? 'session' : 'sessions'}
-                      </p>
-                    </div>
-                    <span className="shrink-0 font-sans text-xs text-coral">
-                      Continue →
-                    </span>
-                  </button>
-                ))}
+                {recentGoals.map((g) => {
+                  const color = getGoalColor({ id: g.goal_id, color: g.color })
+                  const streak = goalStreaks.get(g.goal_id) ?? 0
+                  const metaParts = [
+                    `${formatDuration(g.total_minutes)}`,
+                    `${g.session_count} ${g.session_count === 1 ? 'session' : 'sessions'}`,
+                    streak > 0 ? `${streak}d streak` : null,
+                    g.last_session_at ? `last ${timeAgo(g.last_session_at)}` : null,
+                  ].filter(Boolean)
+                  return (
+                    <button
+                      key={g.goal_id}
+                      onClick={() => handleContinueGoal(g.goal_id)}
+                      className="w-full text-left py-3.5 border-b border-border-warm last:border-0 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p
+                          className="font-sans text-sm font-medium truncate"
+                          style={{ color }}
+                        >
+                          {g.name}
+                        </p>
+                        <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
+                          {metaParts.join(' · ')}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-sans text-xs text-coral">
+                        Continue →
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}

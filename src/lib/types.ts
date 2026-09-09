@@ -8,6 +8,7 @@ export interface Goal {
   user_id: string
   name: string
   status: GoalStatus
+  color: string | null
   schedule: Weekday[] | null
   last_used_duration_minutes: number | null
   created_at: string

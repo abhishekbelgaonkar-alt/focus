@@ -3,7 +3,9 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SessionRow } from '@/components/SessionRow'
-import { formatDuration } from '@/lib/format'
+import { formatDuration, timeAgo } from '@/lib/format'
+import { getGoalColor } from '@/lib/goal-color'
+import { calcDayStreak } from '@/lib/stats'
 
 interface SessionItem {
   id: string
@@ -11,11 +13,15 @@ interface SessionItem {
   started_at: string
   actual_duration_minutes: number
   rating: number | null
+  session_tasks: { id: string; completed_at: string | null }[]
 }
 
 interface GoalData {
   id: string
   name: string
+  color: string | null
+  status: 'active' | 'completed' | 'abandoned'
+  created_at: string
 }
 
 export default function GoalDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,42 +33,80 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from('goals').select('id, name').eq('id', goalId).single(),
+  const load = async () => {
+    const [{ data: g }, { data: s }] = await Promise.all([
+      supabase.from('goals').select('id, name, color, status, created_at').eq('id', goalId).single(),
       supabase
         .from('sessions')
-        .select('id, session_name, started_at, actual_duration_minutes, rating')
+        .select('id, session_name, started_at, actual_duration_minutes, rating, session_tasks(id, completed_at)')
         .eq('goal_id', goalId)
+        .eq('status', 'completed')
         .order('started_at', { ascending: false }),
-    ]).then(([{ data: g }, { data: s }]) => {
-      if (g) setGoal(g as GoalData)
-      setSessions((s ?? []) as SessionItem[])
-      setLoading(false)
-    })
+    ])
+    if (g) setGoal(g as GoalData)
+    setSessions((s ?? []) as unknown as SessionItem[])
+  }
+
+  useEffect(() => {
+    load().finally(() => setLoading(false))
   }, [goalId])
+
+  const setStatus = async (status: GoalData['status']) => {
+    await supabase.from('goals').update({ status }).eq('id', goalId)
+    setGoal((prev) => (prev ? { ...prev, status } : prev))
+  }
 
   if (loading) return null
   if (!goal) return <p className="p-6 font-sans text-text-muted">Goal not found.</p>
 
+  const color = getGoalColor({ id: goal.id, color: goal.color })
+
+  // Aggregate stats
   const totalMinutes = sessions.reduce((sum, s) => sum + s.actual_duration_minutes, 0)
   const ratings = sessions.map((s) => s.rating).filter((r): r is number => r !== null)
-  const avgRating =
-    ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
+  const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
+
+  // Unique days worked
+  const uniqueDays = new Set(sessions.map((s) => s.started_at.slice(0, 10))).size
+  // Consecutive-day streak
+  const streak = calcDayStreak(sessions.map((s) => s.started_at))
+  // Task tallies
+  const allTasks = sessions.flatMap((s) => s.session_tasks ?? [])
+  const taskTotal = allTasks.length
+  const taskDone = allTasks.filter((t) => t.completed_at !== null).length
+  // Last session
+  const lastAt = sessions[0]?.started_at ?? null
 
   return (
     <main className="min-h-screen bg-cream px-6 pt-12 pb-10 max-w-md mx-auto">
-      <button
-        onClick={() => router.back()}
-        className="font-sans text-sm text-text-muted mb-6 block"
-      >
-        ← Back
-      </button>
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={() => router.back()} className="font-sans text-sm text-text-muted">
+          ← Back
+        </button>
+        <span
+          className="font-sans text-xs uppercase tracking-wide"
+          style={{ color: goal.status === 'completed' ? '#16a34a' : goal.status === 'abandoned' ? '#b91c1c' : color }}
+        >
+          {goal.status}
+        </span>
+      </div>
 
-      <h1 className="font-sans text-2xl font-medium text-text-primary mb-6">{goal.name}</h1>
+      <div className="flex items-center gap-3 mb-2">
+        <span
+          className="w-3 h-3 rounded-full shrink-0"
+          style={{ backgroundColor: color }}
+        />
+        <h1 className="font-sans text-2xl font-medium" style={{ color }}>
+          {goal.name}
+        </h1>
+      </div>
+      <p className="font-sans text-xs text-text-muted mb-8">
+        Created {timeAgo(goal.created_at)}
+        {lastAt ? ` · last session ${timeAgo(lastAt)}` : ''}
+      </p>
 
-      {/* Three stats */}
-      <div className="flex gap-6 mb-10">
+      {/* Primary stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
         <div>
           <p className="font-numbers text-2xl font-semibold text-text-primary">
             {formatDuration(totalMinutes)}
@@ -81,6 +125,53 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
           </p>
           <p className="font-sans text-xs text-text-muted mt-0.5">avg rating</p>
         </div>
+      </div>
+
+      {/* Secondary stats */}
+      <div className="grid grid-cols-3 gap-4 mb-10">
+        <div>
+          <p className="font-numbers text-xl font-semibold text-text-primary">{uniqueDays}</p>
+          <p className="font-sans text-xs text-text-muted mt-0.5">days worked</p>
+        </div>
+        <div>
+          <p className="font-numbers text-xl font-semibold text-text-primary">{streak}</p>
+          <p className="font-sans text-xs text-text-muted mt-0.5">day streak</p>
+        </div>
+        <div>
+          <p className="font-numbers text-xl font-semibold text-text-primary">
+            {taskTotal === 0 ? '—' : `${taskDone}/${taskTotal}`}
+          </p>
+          <p className="font-sans text-xs text-text-muted mt-0.5">tasks done</p>
+        </div>
+      </div>
+
+      {/* Status actions */}
+      <div className="flex flex-wrap gap-3 mb-8">
+        {goal.status !== 'completed' && (
+          <button
+            onClick={() => setStatus('completed')}
+            className="font-sans text-xs px-3 py-1.5 rounded-pill border-[1.5px]"
+            style={{ borderColor: '#16a34a', color: '#16a34a' }}
+          >
+            Mark completed
+          </button>
+        )}
+        {goal.status !== 'abandoned' && (
+          <button
+            onClick={() => setStatus('abandoned')}
+            className="font-sans text-xs px-3 py-1.5 rounded-pill border-[1.5px] border-border-warm text-text-muted"
+          >
+            Mark abandoned
+          </button>
+        )}
+        {goal.status !== 'active' && (
+          <button
+            onClick={() => setStatus('active')}
+            className="font-sans text-xs px-3 py-1.5 rounded-pill border-[1.5px] border-coral text-coral"
+          >
+            Reopen
+          </button>
+        )}
       </div>
 
       {/* Schedule link */}
@@ -123,6 +214,7 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
               startedAt={s.started_at}
               actualDurationMinutes={s.actual_duration_minutes}
               rating={s.rating}
+              taskCount={s.session_tasks?.length ?? 0}
               onClick={() => router.push(`/sessions/${s.id}`)}
             />
           ))}

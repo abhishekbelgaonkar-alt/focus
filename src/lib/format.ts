@@ -22,6 +22,24 @@ export function formatDateTime(iso: string): string {
   })
 }
 
+export function timeAgo(iso: string | null): string {
+  if (!iso) return 'never'
+  const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 0) return 'just now'
+  const s = Math.floor(diff / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d === 1) return 'yesterday'
+  if (d < 7) return `${d}d ago`
+  if (d < 30) return `${Math.floor(d / 7)}w ago`
+  const mo = Math.floor(d / 30)
+  return mo === 1 ? '1mo ago' : `${mo}mo ago`
+}
+
 export function getSnippet(text: string, query: string, radius = 60): string {
   const lower = text.toLowerCase()
   const idx = lower.indexOf(query.toLowerCase())
