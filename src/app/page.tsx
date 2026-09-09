@@ -224,7 +224,7 @@ function HomePageInner() {
             />
           </div>
 
-          <DurationPicker value={duration} onChange={setDuration} />
+          <DurationPicker value={duration} onChange={setDuration} max={180} />
 
           <button
             onClick={handleStart}

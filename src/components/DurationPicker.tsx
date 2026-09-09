@@ -1,5 +1,5 @@
 'use client'
-import { useRef } from 'react'
+import { useState, useEffect } from 'react'
 
 interface DurationPickerProps {
   value: number
@@ -8,53 +8,88 @@ interface DurationPickerProps {
   max?: number
 }
 
-const LABEL_INTERVAL = 15
 const SLIDER_HEIGHT = 28   // must match .focus-slider height in globals.css
 
 export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationPickerProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
   const range = max - min
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
 
-  const handleSpanClick = () => {
-    inputRef.current?.focus()
-    inputRef.current?.select()
+  // Adaptive tick density: for ranges > 90 min the "every 1 minute" tinies
+  // become unreadably dense; drop them and space majors farther apart.
+  const compact = range > 90
+  const largeStep = compact ? 30 : 15
+  const mediumStep = compact ? 10 : 5
+
+  const startEdit = () => {
+    setDraft(String(value))
+    setEditing(true)
   }
 
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = parseInt(e.target.value)
-    if (!isNaN(v)) {
-      onChange(Math.min(max, Math.max(min, v)))
-    }
+  const commitEdit = () => {
+    const n = parseInt(draft, 10)
+    if (!isNaN(n)) onChange(Math.min(max, Math.max(min, n)))
+    setEditing(false)
   }
 
-  const ticks = Array.from({ length: range + 1 }, (_, i) => min + i)
-  const labels = ticks.filter((m) => m % LABEL_INTERVAL === 0)
+  const cancelEdit = () => setEditing(false)
+
+  // Keep draft in sync when parent updates value while not editing
+  useEffect(() => {
+    if (!editing) setDraft(String(value))
+  }, [value, editing])
+
+  // Build tick + label positions
+  const ticks: { pos: number; tier: 'tiny' | 'medium' | 'large' }[] = []
+  for (let m = min; m <= max; m++) {
+    const isLarge = m % largeStep === 0
+    const isMedium = !isLarge && m % mediumStep === 0
+    const isTiny = !isLarge && !isMedium && !compact
+    if (isLarge) ticks.push({ pos: m, tier: 'large' })
+    else if (isMedium) ticks.push({ pos: m, tier: 'medium' })
+    else if (isTiny) ticks.push({ pos: m, tier: 'tiny' })
+  }
+  const labels = ticks.filter((t) => t.tier === 'large').map((t) => t.pos)
 
   return (
     <div className="w-full">
-      {/* Clickable number display — large span + invisible input behind it */}
-      <div
-        className="inline-flex items-baseline gap-2 mb-6 cursor-text"
-        onClick={handleSpanClick}
-      >
-        <span className="font-numbers text-7xl font-semibold text-text-primary leading-none select-none">
-          {value}
-        </span>
+      {/* Number display — click to edit inline */}
+      <div className="inline-flex items-baseline gap-2 mb-6">
+        {editing ? (
+          <input
+            autoFocus
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
+            onFocus={(e) => e.target.select()}
+            onBlur={commitEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitEdit()
+              if (e.key === 'Escape') cancelEdit()
+            }}
+            aria-label="Duration in minutes"
+            className="font-numbers text-7xl font-semibold text-text-primary leading-none bg-transparent outline-none w-40 pb-0.5 border-b-2 border-coral"
+          />
+        ) : (
+          <span
+            onClick={startEdit}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEdit() }
+            }}
+            className="font-numbers text-7xl font-semibold text-text-primary leading-none cursor-text select-none"
+            aria-label={`Duration ${value} minutes — click to edit`}
+          >
+            {value}
+          </span>
+        )}
         <span className="font-sans text-xl text-text-muted select-none">min</span>
-        <input
-          ref={inputRef}
-          type="number"
-          value={value}
-          min={min}
-          max={max}
-          onChange={handleNumberChange}
-          aria-label="Duration in minutes"
-          className="absolute opacity-0 w-0 h-0 pointer-events-none"
-          tabIndex={-1}
-        />
       </div>
 
-      {/* 15-min labels above the tick+slider stack */}
+      {/* Label row */}
       <div className="relative w-full h-5 mb-1">
         {labels.map((m) => (
           <span
@@ -67,8 +102,7 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
         ))}
       </div>
 
-      {/* Slider + tick marks OVERLAID — thumb slides directly on tick marks.
-          Three tick tiers: tiny (1 min), medium (5 min), tall (15 min). */}
+      {/* Slider + tick marks OVERLAID */}
       <div className="relative w-full" style={{ height: SLIDER_HEIGHT }}>
         <svg
           className="absolute inset-0 w-full pointer-events-none"
@@ -77,21 +111,21 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          {ticks.map((m) => {
-            const isLarge = m % 15 === 0
-            const isMedium = m % 5 === 0 && !isLarge
-            const halfHeight = isLarge ? 12 : isMedium ? 7 : 4
-            const x = `${((m - min) / range) * 100}%`
+          {ticks.map(({ pos, tier }) => {
+            const halfHeight = tier === 'large' ? 12 : tier === 'medium' ? 7 : 4
+            const x = `${((pos - min) / range) * 100}%`
             const cy = SLIDER_HEIGHT / 2
+            const stroke = tier === 'tiny' ? '#c9b79c' : '#b08c6a'
+            const width = tier === 'large' ? 1.5 : 1
             return (
               <line
-                key={m}
+                key={pos}
                 x1={x}
                 x2={x}
                 y1={cy - halfHeight}
                 y2={cy + halfHeight}
-                stroke={isLarge ? '#b08c6a' : '#c9b79c'}
-                strokeWidth={isLarge ? '1.5' : '1'}
+                stroke={stroke}
+                strokeWidth={width}
               />
             )
           })}

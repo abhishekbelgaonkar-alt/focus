@@ -68,7 +68,7 @@ function SetupPageInner() {
       </div>
 
       <div className="mb-12">
-        <DurationPicker value={duration} onChange={setDuration} />
+        <DurationPicker value={duration} onChange={setDuration} max={180} />
       </div>
 
       <button
