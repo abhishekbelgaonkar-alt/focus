@@ -85,6 +85,18 @@ function HomePageInner() {
     }>
   >([])
   const [incompleteTaskCount, setIncompleteTaskCount] = useState(0)
+  const [incompleteTasks, setIncompleteTasks] = useState<
+    Array<{
+      id: string
+      name: string
+      sessions: {
+        id: string
+        session_name: string | null
+        goals: { name: string } | null
+        categories: { name: string } | null
+      } | null
+    }>
+  >([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
 
@@ -163,14 +175,23 @@ function HomePageInner() {
           (inProgressQuery.data ?? []) as unknown as typeof inProgressSessions
         )
 
-        // Count of tasks that were never checked off, in concluded sessions.
-        const { count: incompleteCount } = await supabase
+        // Tasks that were never checked off, in concluded sessions.
+        // One query for both the preview list and the total count.
+        const { data: incTasks, count: incompleteCount } = await supabase
           .from('session_tasks')
-          .select('sessions!inner(status)', { count: 'exact', head: true })
+          .select(
+            'id, name, sessions!inner(id, session_name, user_id, status, goals(name), categories(name))',
+            { count: 'exact' }
+          )
           .is('completed_at', null)
           .eq('sessions.user_id', data.user.id)
           .eq('sessions.status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(3)
         setIncompleteTaskCount(incompleteCount ?? 0)
+        setIncompleteTasks(
+          (incTasks ?? []) as unknown as typeof incompleteTasks
+        )
 
         const today = WEEKDAYS[new Date().getDay()]
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
@@ -583,6 +604,61 @@ function HomePageInner() {
               </div>
             </div>
           )}
+
+          {incompleteTasks.length > 0 && (
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
+                  Unfinished tasks
+                </p>
+                <button
+                  onClick={() => router.push('/incomplete-tasks')}
+                  className="font-sans text-xs text-coral"
+                >
+                  View all →
+                </button>
+              </div>
+              <div>
+                {incompleteTasks.map((t) => {
+                  const s = t.sessions
+                  const context =
+                    s?.goals?.name ??
+                    s?.categories?.name ??
+                    s?.session_name ??
+                    null
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => s && router.push(`/sessions/${s.id}`)}
+                      className="w-full text-left py-3.5 border-b border-border-warm last:border-0 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-sans text-sm font-medium text-text-primary truncate">
+                          {t.name}
+                        </p>
+                        {context && (
+                          <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
+                            {context}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 font-sans text-xs text-coral">
+                        Open →
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {incompleteTaskCount > incompleteTasks.length && (
+                <button
+                  onClick={() => router.push('/incomplete-tasks')}
+                  className="mt-3 font-sans text-xs text-text-muted w-full text-left"
+                >
+                  + {incompleteTaskCount - incompleteTasks.length} more →
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* RIGHT column — History (col 3 on md+). Header links to the
@@ -628,16 +704,6 @@ function HomePageInner() {
               className="mt-3 font-sans text-xs text-text-muted w-full text-left"
             >
               + {sessionCount - 5} more →
-            </button>
-          )}
-
-          {incompleteTaskCount > 0 && (
-            <button
-              onClick={() => router.push('/incomplete-tasks')}
-              className="mt-6 pt-4 border-t border-border-warm w-full text-left font-sans text-xs text-text-muted"
-            >
-              {incompleteTaskCount} unfinished{' '}
-              {incompleteTaskCount === 1 ? 'task' : 'tasks'} →
             </button>
           )}
         </div>
