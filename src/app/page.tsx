@@ -424,33 +424,37 @@ function HomePageInner() {
 
           {recentGoals.length > 0 && (
             <div>
-              <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
-                Continue a goal
-              </p>
-              <div className="flex flex-col gap-3">
-                {recentGoals.map((g, i) => (
-                  <div
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
+                  Continue a goal
+                </p>
+                <button
+                  onClick={() => router.push('/goals')}
+                  className="font-sans text-xs text-coral"
+                >
+                  All →
+                </button>
+              </div>
+              <div>
+                {recentGoals.map((g) => (
+                  <button
                     key={g.goal_id}
-                    className="border border-border-warm rounded-xl p-3"
+                    onClick={() => handleContinueGoal(g.goal_id)}
+                    className="w-full text-left py-3.5 border-b border-border-warm last:border-0 flex items-center justify-between gap-3"
                   >
-                    <p className="font-sans text-sm font-medium text-text-primary truncate">
-                      {g.name}
-                    </p>
-                    <p className="font-sans text-xs text-text-muted mt-0.5 mb-3">
-                      {formatDuration(g.total_minutes)} · {g.session_count}{' '}
-                      {g.session_count === 1 ? 'session' : 'sessions'}
-                    </p>
-                    <button
-                      onClick={() => handleContinueGoal(g.goal_id)}
-                      className={`w-full px-3 py-1.5 rounded-pill font-sans text-xs font-medium ${
-                        i === 0
-                          ? 'bg-coral text-white'
-                          : 'border-[1.5px] border-coral text-coral'
-                      }`}
-                    >
-                      Continue
-                    </button>
-                  </div>
+                    <div className="min-w-0">
+                      <p className="font-sans text-sm font-medium text-text-primary truncate">
+                        {g.name}
+                      </p>
+                      <p className="font-sans text-xs text-text-muted mt-0.5 truncate">
+                        {formatDuration(g.total_minutes)} · {g.session_count}{' '}
+                        {g.session_count === 1 ? 'session' : 'sessions'}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-sans text-xs text-coral">
+                      Continue →
+                    </span>
+                  </button>
                 ))}
               </div>
             </div>
