@@ -148,62 +148,85 @@ export function RatingForm({
 
       {showGoalPrompt && (
         <div className="mb-8 border border-border-warm rounded-xl p-4">
-          <label className="block font-sans text-sm text-text-muted mb-3">
-            What was this session for?{' '}
-            <span className="text-text-light">(optional)</span>
+          <label className="block font-sans text-sm font-medium text-text-primary mb-1">
+            Group with a goal{' '}
+            <span className="text-text-light font-normal">(optional)</span>
           </label>
+          <p className="font-sans text-xs text-text-muted mb-4 leading-relaxed">
+            A goal is a project or theme you&apos;ll come back to — e.g.{' '}
+            <em>&ldquo;Finals prep&rdquo;</em> or <em>&ldquo;Learn guitar&rdquo;</em>.
+            Sessions grouped by goal roll up in <strong>All goals</strong> with running totals.
+          </p>
 
-          {/* Mode picker — Skip / Pick existing / Create new */}
-          <div className="flex gap-2 mb-3 flex-wrap">
-            {([
-              { key: 'skip', label: 'Skip' },
-              ...(goalOptions.length > 0 ? [{ key: 'existing' as const, label: 'Pick existing' }] : []),
-              { key: 'create', label: 'Create new' },
-            ] as { key: GoalMode; label: string }[]).map((opt) => (
-              <button
-                key={opt.key}
-                onClick={() => setGoalMode(opt.key)}
-                className={`px-3 py-1.5 rounded-pill text-xs font-sans border-[1.5px] ${
-                  goalMode === opt.key
-                    ? 'bg-coral-light border-coral text-tag-text'
-                    : 'bg-transparent border-border-warm text-text-muted'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {goalMode === 'existing' && (
-            <select
-              value={selectedOptionKey}
-              onChange={(e) => setSelectedOptionKey(e.target.value)}
-              className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
-            >
-              <option value="">Choose one…</option>
-              {goalOptions
-                .filter((o) => o.type === 'goal')
-                .map((o) => (
-                  <option key={`goal:${o.id}`} value={`goal:${o.id}`}>
-                    {o.name}
-                  </option>
+          {/* When existing goals exist, offer picker + Create switch. Otherwise
+              just show a single input — nothing to pick from anyway. */}
+          {goalOptions.length > 0 ? (
+            <>
+              <div className="flex gap-2 mb-3 flex-wrap">
+                {([
+                  { key: 'skip', label: 'Skip' },
+                  { key: 'existing' as const, label: 'Pick existing' },
+                  { key: 'create', label: 'Create new' },
+                ] as { key: GoalMode; label: string }[]).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setGoalMode(opt.key)}
+                    className={`px-3 py-1.5 rounded-pill text-xs font-sans border-[1.5px] ${
+                      goalMode === opt.key
+                        ? 'bg-coral-light border-coral text-tag-text'
+                        : 'bg-transparent border-border-warm text-text-muted'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
                 ))}
-              {goalOptions
-                .filter((o) => o.type === 'category')
-                .map((o) => (
-                  <option key={`category:${o.id}`} value={`category:${o.id}`}>
-                    {o.name} (category)
-                  </option>
-                ))}
-            </select>
-          )}
+              </div>
 
-          {goalMode === 'create' && (
+              {goalMode === 'existing' && (
+                <select
+                  value={selectedOptionKey}
+                  onChange={(e) => setSelectedOptionKey(e.target.value)}
+                  className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
+                >
+                  <option value="">Choose one…</option>
+                  {goalOptions
+                    .filter((o) => o.type === 'goal')
+                    .map((o) => (
+                      <option key={`goal:${o.id}`} value={`goal:${o.id}`}>
+                        {o.name}
+                      </option>
+                    ))}
+                  {goalOptions
+                    .filter((o) => o.type === 'category')
+                    .map((o) => (
+                      <option key={`category:${o.id}`} value={`category:${o.id}`}>
+                        {o.name} (category)
+                      </option>
+                    ))}
+                </select>
+              )}
+
+              {goalMode === 'create' && (
+                <input
+                  type="text"
+                  value={goalText}
+                  onChange={(e) => setGoalText(e.target.value)}
+                  placeholder="e.g. Finals prep"
+                  className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
+                />
+              )}
+            </>
+          ) : (
             <input
               type="text"
               value={goalText}
-              onChange={(e) => setGoalText(e.target.value)}
-              placeholder="Name a new goal"
+              onChange={(e) => {
+                setGoalText(e.target.value)
+                // First-time users: implicitly "create" mode once they type
+                if (e.target.value && goalMode !== 'create') setGoalMode('create')
+                if (!e.target.value) setGoalMode('skip')
+              }}
+              placeholder="e.g. Finals prep"
               className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
             />
           )}

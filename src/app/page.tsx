@@ -152,6 +152,30 @@ function HomePageInner() {
         {todayDate}
       </p>
 
+      {/* First-time explainer — self-hides once the user has any goal */}
+      {goalStats.length === 0 && (
+        <div className="bg-coral-light rounded-xl p-4 mb-6 relative z-40">
+          <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
+            How Focus works
+          </p>
+          <div className="flex flex-col gap-2.5 font-sans text-sm text-text-primary leading-relaxed">
+            <p>
+              A <strong>session</strong> is one timed block of work — with tasks, a rating, and notes.
+              You start one with the timer below.
+            </p>
+            <p>
+              A <strong>goal</strong> groups sessions on a shared project — like <em>&ldquo;Ship v1&rdquo;</em> or{' '}
+              <em>&ldquo;Learn Spanish&rdquo;</em>. Assign one on the Save screen and it&apos;ll show up in{' '}
+              <strong>All goals</strong> with running totals.
+            </p>
+            <p>
+              Give a goal a <strong>schedule</strong> (Mon / Wed / Fri, etc.) and it&apos;ll auto-appear as{' '}
+              <em>Today&apos;s plan</em> on the days you set.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mb-8">
         <SearchBar onOpenChange={setSearchOpen} />
       </div>
@@ -253,7 +277,7 @@ function HomePageInner() {
         {recentGoals.length > 0 && (
           <div>
             <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
-              Or pick up where you left off
+              Or continue a goal you&apos;ve been working on
             </p>
             <div className="flex flex-col gap-4">
               {recentGoals.map((g, i) => (

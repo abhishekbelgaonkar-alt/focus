@@ -48,7 +48,14 @@ export default function AllGoalsPage() {
       </div>
 
       {goals.length === 0 ? (
-        <p className="font-sans text-sm text-text-muted">No goals yet.</p>
+        <div className="border border-border-warm rounded-xl p-5">
+          <p className="font-sans text-sm text-text-primary mb-2">No goals yet.</p>
+          <p className="font-sans text-sm text-text-muted leading-relaxed">
+            A goal groups sessions on a shared project — like{' '}
+            <em>&ldquo;Ship v1&rdquo;</em> or <em>&ldquo;Learn Spanish&rdquo;</em>. Add one on
+            any Save screen after finishing a session, and it&apos;ll appear here with running totals.
+          </p>
+        </div>
       ) : (
         <div className="flex flex-col">
           {goals.map((g) => (
