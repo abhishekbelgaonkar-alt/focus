@@ -75,7 +75,7 @@
   appearance: none;
   width: 2px;
   height: 28px;
-  background: #e8905a;
+  background: var(--color-coral-soft);
   border: none;
   box-shadow: none;
   cursor: pointer;
@@ -86,16 +86,64 @@
 .focus-slider::-moz-range-thumb {
   width: 2px;
   height: 28px;
-  background: #e8905a;
+  background: var(--color-coral-soft);
   border: none;
   box-shadow: none;
   cursor: pointer;
   border-radius: 1px;
 }
 
+/*
+  Themes. Each override class replaces the base @theme variables above.
+  Applied by adding e.g. 'theme-dark' to <html> — done via an inline script
+  in layout.tsx before hydration so there's no FOUC.
+*/
+.theme-dark {
+  --color-cream: #1a1512;
+  --color-text-primary: #f2e8dc;
+  --color-text-muted: #b09a80;
+  --color-text-light: #7a6a58;
+  --color-border-warm: #3a2f26;
+  --color-coral: #e88a5a;
+  --color-coral-soft: #d9642e;
+  --color-coral-light: #4a2a1c;
+  --color-tag-text: #f4c493;
+
+  --color-heatmap-none: #2a2420;
+  --color-heatmap-low:  #4a3020;
+  --color-heatmap-mid:  #6d3f26;
+  --color-heatmap-high: #a3532e;
+  --color-heatmap-peak: #e88a5a;
+
+  --color-check-green: #22c55e;
+  --color-goal-green: #4ade80;   /* brighter for legibility on dark bg */
+}
+
+.theme-cherry {
+  --color-cream: #fef7fa;
+  --color-text-primary: #4a1e35;
+  --color-text-muted: #a56484;
+  --color-text-light: #cf98b3;
+  --color-border-warm: #f5d5e0;
+  --color-coral: #ec4899;
+  --color-coral-soft: #f472b6;
+  --color-coral-light: #fce7f3;
+  --color-tag-text: #9d174d;
+
+  --color-heatmap-none: #fce7f3;
+  --color-heatmap-low:  #fbcfe8;
+  --color-heatmap-mid:  #f9a8d4;
+  --color-heatmap-high: #f472b6;
+  --color-heatmap-peak: #ec4899;
+
+  --color-check-green: #22c55e;
+  --color-goal-green: #16a34a;
+}
+
 body {
-  background-color: #fdf6ee;
-  color: #3d3126;
+  background-color: var(--color-cream);
+  color: var(--color-text-primary);
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 /*

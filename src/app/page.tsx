@@ -7,6 +7,7 @@ import { SearchBar } from '@/components/SearchBar'
 import { SessionRow } from '@/components/SessionRow'
 import { HowItWorksModal } from '@/components/HowItWorksModal'
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { timeAgo } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
 import { calcDayStreak } from '@/lib/stats'
@@ -373,7 +374,8 @@ function HomePageInner() {
         <div>
           <SearchBar onOpenChange={setSearchOpen} />
         </div>
-        <div className="flex md:justify-end">
+        <div className="flex items-center gap-4 md:justify-end">
+          <ThemeToggle />
           <button
             onClick={() => router.push('/profile')}
             className="font-sans text-sm text-text-muted whitespace-nowrap"
