@@ -53,8 +53,9 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
 
   return (
     <div className="w-full">
-      {/* Number display — click to edit inline */}
-      <div className="inline-flex items-baseline gap-2 mb-6">
+      {/* Number display — click to edit inline. Centered above the scale
+          so the numeric readout sits over the middle of the ruler. */}
+      <div className="flex items-baseline justify-center gap-2 mb-6">
         {editing ? (
           <input
             autoFocus
