@@ -108,9 +108,16 @@ function HomePageInner() {
 
   const selectExistingGoal = async (id: string, name: string) => {
     setGoalMode({ kind: 'existing', id, name })
-    // Note: intentionally do NOT copy the goal name into the focus/session
-    // name field. Session name is per-run (e.g. 'Chapter 1'); the goal is
-    // the umbrella project ('Thermodynamics'). Keep them independent.
+
+    // Default the session name to 'Session #N' for this goal — only if the
+    // user hasn't typed anything of their own. Uses goalStats.session_count
+    // (already loaded), which counts COMPLETED sessions; +1 = the number this
+    // one will become on save.
+    const stat = goalStats.find((s) => s.goal_id === id)
+    if (stat && !focusText.trim()) {
+      setFocusText(`Session #${stat.session_count + 1}`)
+    }
+
     try {
       const { data: g } = await supabase
         .from('goals')
