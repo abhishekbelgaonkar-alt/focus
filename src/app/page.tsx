@@ -325,37 +325,42 @@ function HomePageInner() {
   })
 
   return (
-    <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-4xl mx-auto">
-      {/* ── Top nav — single flex row so nothing wraps to a second line ── */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-6 relative z-40">
-        <button
-          onClick={() => router.push('/goals')}
-          className="font-sans text-sm text-text-muted whitespace-nowrap"
-        >
-          All goals
-        </button>
-        <button
-          onClick={() => setHelpOpen(true)}
-          className="font-sans text-sm text-text-muted whitespace-nowrap"
-        >
-          How it works
-        </button>
-        <div className="flex-1 min-w-[180px] max-w-sm">
+    <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-5xl mx-auto">
+      {/* ── Top nav — grid on md+ with equal side cells so search bar
+          sits at page center; falls back to flex-wrap on mobile ────── */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-6 relative z-40 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-x-6">
+        <div className="flex items-center gap-5">
+          <button
+            onClick={() => router.push('/goals')}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            All goals
+          </button>
+          <button
+            onClick={() => setHelpOpen(true)}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            How it works
+          </button>
+        </div>
+        <div className="w-full max-w-sm md:justify-self-center">
           <SearchBar onOpenChange={setSearchOpen} />
         </div>
-        <button
-          onClick={() => router.push('/history')}
-          className="font-sans text-sm text-text-muted whitespace-nowrap"
-        >
-          History
-        </button>
-        <ThemeToggle />
-        <button
-          onClick={() => router.push('/profile')}
-          className="font-sans text-sm text-text-muted whitespace-nowrap"
-        >
-          Profile
-        </button>
+        <div className="flex items-center gap-5 md:justify-self-end">
+          <button
+            onClick={() => router.push('/history')}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            History
+          </button>
+          <ThemeToggle />
+          <button
+            onClick={() => router.push('/profile')}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            Profile
+          </button>
+        </div>
       </div>
 
       {/* ── Date ─────────────────────────────────────────────────────────── */}
@@ -363,16 +368,18 @@ function HomePageInner() {
         {todayDate}
       </p>
 
-      {/* ── Two-column grid: LEFT (goals stack) | RIGHT (timer) ──
-          On mobile stacks: timer first (primary action), then goals.
-          Blurs as a whole when search is open. */}
+      {/* ── Three-column grid: LEFT (goals) | CENTER (timer) | RIGHT (spacer).
+          Side columns are equal (both minmax(0,1fr)), so the center column —
+          and the timer inputs inside it — sit at page center. Right column
+          is an intentional empty spacer that balances the left one. On mobile
+          the grid collapses to one column; DOM order puts the timer first. */}
       <div
-        className={`grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-8 gap-y-10 items-start transition-[filter,opacity] duration-150 ${
+        className={`grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-x-8 gap-y-10 items-start transition-[filter,opacity] duration-150 ${
           searchOpen ? 'blur-sm opacity-40 pointer-events-none select-none' : ''
         }`}
       >
-        {/* RIGHT — Timer setup (col 2 on md+, DOM-first so mobile shows it up top) */}
-        <div className="md:col-start-2 md:row-start-1">
+        {/* CENTER — Timer setup (DOM-first so mobile shows it up top) */}
+        <div className="md:col-start-2 md:row-start-1 w-full max-w-md md:mx-auto">
           <label className="block font-sans text-lg font-medium text-text-primary mb-1">
             What are you working on?
           </label>
@@ -710,6 +717,9 @@ function HomePageInner() {
           </div>
         </div>
 
+        {/* RIGHT column — intentional empty spacer that balances the left
+            column's width, so the CENTER column (timer) stays at page center. */}
+        <div className="hidden md:block md:col-start-3 md:row-start-1" />
       </div>
 
       <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
