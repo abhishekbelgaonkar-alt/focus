@@ -366,12 +366,7 @@ function HomePageInner() {
         </div>
       </div>
 
-      {/* ── Date ─────────────────────────────────────────────────────────── */}
-      <p className="font-sans text-sm text-text-muted mb-8 relative z-40">
-        {todayDate}
-      </p>
-
-      {/* ── Three-column grid: LEFT (goals) | CENTER (timer) | RIGHT (spacer).
+      {/* ── Three-column grid: LEFT (goals) | CENTER (timer) | RIGHT (date + plan).
           Side columns are equal (both minmax(0,1fr)), so the center column —
           and the timer inputs inside it — sit at page center. Right column
           is an intentional empty spacer that balances the left one. On mobile
@@ -530,25 +525,6 @@ function HomePageInner() {
 
         {/* LEFT column — Today's plan + Continue a goal (col 1 on md+) */}
         <div className="md:col-start-1 md:row-start-1 flex flex-col gap-8">
-          {todayGoals.length > 0 && (
-            <div className="bg-coral-light rounded-xl p-4">
-              <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide mb-3">
-                Today&apos;s plan
-              </p>
-              <div className="flex flex-col gap-2">
-                {todayGoals.map((g) => (
-                  <button
-                    key={g.goal_id}
-                    onClick={() => handleContinueGoal(g.goal_id)}
-                    className="text-left font-sans text-sm font-medium text-text-primary"
-                  >
-                    {g.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {inProgressSessions.length > 0 && (
             <div>
               <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
@@ -728,9 +704,36 @@ function HomePageInner() {
           </div>
         </div>
 
-        {/* RIGHT column — intentional empty spacer that balances the left
-            column's width, so the CENTER column (timer) stays at page center. */}
-        <div className="hidden md:block md:col-start-3 md:row-start-1" />
+        {/* RIGHT column — date at the top, followed by scheduling context
+            (Today's plan). Column width matches the left column so the
+            CENTER (timer) stays at page center. */}
+        <div className="md:col-start-3 md:row-start-1 flex flex-col gap-6">
+          <p className="font-sans text-sm text-text-muted">
+            {todayDate}
+          </p>
+
+          {todayGoals.length > 0 && (
+            <div className="bg-coral-light rounded-xl p-4">
+              <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide">
+                Today&apos;s plan
+              </p>
+              <p className="font-sans text-xs text-tag-text/70 mb-3 mt-0.5">
+                Goals you scheduled for {new Date().toLocaleDateString('en-US', { weekday: 'long' })}.
+              </p>
+              <div className="flex flex-col gap-2">
+                {todayGoals.map((g) => (
+                  <button
+                    key={g.goal_id}
+                    onClick={() => handleContinueGoal(g.goal_id)}
+                    className="text-left font-sans text-sm font-medium text-text-primary"
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
