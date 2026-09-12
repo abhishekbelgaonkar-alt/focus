@@ -264,8 +264,11 @@ function HomePageInner() {
     router.push('/timer')
   }
 
+  // In-page click: just apply the goal directly to local state. No URL push
+  // (which would leave a noisy /?goalId=... in the address bar).
   const handleContinueGoal = (goalId: string) => {
-    router.push(`/?goalId=${goalId}`)
+    const g = goalStats.find((s) => s.goal_id === goalId)
+    if (g) selectExistingGoal(goalId, g.name)
   }
 
   // Resume a paused session — pull its full state + tasks, hydrate the browser
@@ -548,8 +551,11 @@ function HomePageInner() {
 
           {inProgressSessions.length > 0 && (
             <div>
-              <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-2">
+              <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
                 Sessions in progress
+              </p>
+              <p className="font-sans text-xs text-text-light mb-3 mt-0.5">
+                Sessions you saved for later. Tap to resume where you left off.
               </p>
               <div>
                 {inProgressSessions.map((s) => {
@@ -592,7 +598,7 @@ function HomePageInner() {
 
           {recentGoals.length > 0 && (
             <div>
-              <div className="flex items-baseline justify-between mb-2">
+              <div className="flex items-baseline justify-between">
                 <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
                   Continue a goal
                 </p>
@@ -603,6 +609,9 @@ function HomePageInner() {
                   All →
                 </button>
               </div>
+              <p className="font-sans text-xs text-text-light mb-3 mt-0.5">
+                Recent goals you&apos;ve been working on. Pick one to start a new session for it.
+              </p>
               <div>
                 {recentGoals.map((g) => {
                   const color = getGoalColor({ id: g.goal_id, color: g.color })
@@ -641,9 +650,9 @@ function HomePageInner() {
           )}
 
           {/* Always visible so users can discover the feature. Empty state
-              explains what belongs here; loaded state shows a preview. */}
+              relies on the section subtitle. */}
           <div>
-            <div className="flex items-baseline justify-between mb-2">
+            <div className="flex items-baseline justify-between">
               <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
                 Unfinished tasks
               </p>
@@ -656,11 +665,13 @@ function HomePageInner() {
                 </button>
               )}
             </div>
+            <p className="font-sans text-xs text-text-light mb-3 mt-0.5">
+              Tasks from past sessions you never checked off. Tap to jump back to the session.
+            </p>
 
             {incompleteTasks.length === 0 ? (
-              <p className="font-sans text-xs text-text-light leading-relaxed py-2">
-                Anything you don&apos;t check off before saving a session
-                lands here so it&apos;s easy to come back to.
+              <p className="font-sans text-xs text-text-light/70 italic py-1">
+                Nothing here yet.
               </p>
             ) : (
               <>

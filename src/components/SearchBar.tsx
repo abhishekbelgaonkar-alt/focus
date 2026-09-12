@@ -8,10 +8,10 @@ import { formatDate, getSnippet } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
 
 const SEARCH_PLACEHOLDERS = [
-  'Search through your session names, notes, etc.',
+  'Search sessions & notes',
   'Find a session by keyword',
-  'Search a note or session name',
-  'Look up past sessions',
+  'Search past sessions',
+  'Look up a note',
 ]
 
 interface SearchResult {
@@ -95,8 +95,10 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
       {/* Search input + results — must sit above the backdrop */}
       <div className="relative z-40 w-full">
         <div
-          className={`flex items-center gap-2 border-b pb-1 transition-colors ${
-            isOpen ? 'border-coral' : 'border-border-warm'
+          className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 transition-colors ${
+            isOpen
+              ? 'bg-coral-light ring-1 ring-coral'
+              : 'bg-border-warm/40'
           }`}
         >
           <svg

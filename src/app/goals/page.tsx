@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration, timeAgo } from '@/lib/format'
 import { getGoalColor, GOAL_PALETTE } from '@/lib/goal-color'
+import { SearchBar } from '@/components/SearchBar'
 
 interface GoalStat {
   goal_id: string
@@ -120,6 +121,11 @@ export default function AllGoalsPage() {
         >
           + New goal
         </button>
+      </div>
+
+      {/* Search — available on this page too so users don't have to jump home */}
+      <div className="mb-6">
+        <SearchBar />
       </div>
 
       {/* New goal input — expands inline */}

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SessionRow } from '@/components/SessionRow'
+import { SearchBar } from '@/components/SearchBar'
 import { formatDuration } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
 
@@ -91,6 +92,11 @@ export default function HistoryPage() {
         >
           Unfinished tasks →
         </button>
+      </div>
+
+      {/* Search — quick jump to a past session without going home first */}
+      <div className="mb-8">
+        <SearchBar />
       </div>
 
       {sessions.length === 0 ? (
