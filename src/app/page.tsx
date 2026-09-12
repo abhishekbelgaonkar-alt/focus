@@ -326,41 +326,36 @@ function HomePageInner() {
 
   return (
     <main className="min-h-screen bg-cream px-6 pt-8 pb-10 max-w-4xl mx-auto">
-      {/* ── Top nav — grid columns match the content grid below so the
-          search bar sits above the timer's inputs. ─────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-x-8 items-center gap-y-3 mb-6 relative z-40">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.push('/goals')}
-            className="font-sans text-sm text-text-muted whitespace-nowrap"
-          >
-            All goals
-          </button>
-          <button
-            onClick={() => setHelpOpen(true)}
-            className="font-sans text-sm text-text-muted whitespace-nowrap"
-          >
-            How it works
-          </button>
-        </div>
-        <div>
+      {/* ── Top nav — single flex row so nothing wraps to a second line ── */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-6 relative z-40">
+        <button
+          onClick={() => router.push('/goals')}
+          className="font-sans text-sm text-text-muted whitespace-nowrap"
+        >
+          All goals
+        </button>
+        <button
+          onClick={() => setHelpOpen(true)}
+          className="font-sans text-sm text-text-muted whitespace-nowrap"
+        >
+          How it works
+        </button>
+        <div className="flex-1 min-w-[180px] max-w-sm">
           <SearchBar onOpenChange={setSearchOpen} />
         </div>
-        <div className="flex items-center gap-4 md:justify-end">
-          <button
-            onClick={() => router.push('/history')}
-            className="font-sans text-sm text-text-muted whitespace-nowrap"
-          >
-            History
-          </button>
-          <ThemeToggle />
-          <button
-            onClick={() => router.push('/profile')}
-            className="font-sans text-sm text-text-muted whitespace-nowrap"
-          >
-            Profile
-          </button>
-        </div>
+        <button
+          onClick={() => router.push('/history')}
+          className="font-sans text-sm text-text-muted whitespace-nowrap"
+        >
+          History
+        </button>
+        <ThemeToggle />
+        <button
+          onClick={() => router.push('/profile')}
+          className="font-sans text-sm text-text-muted whitespace-nowrap"
+        >
+          Profile
+        </button>
       </div>
 
       {/* ── Date ─────────────────────────────────────────────────────────── */}
