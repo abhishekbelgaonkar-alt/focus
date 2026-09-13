@@ -50,6 +50,7 @@ interface RatingFormProps {
   showGoalPrompt?: boolean
   goalOptions?: GoalOption[]
   header?: React.ReactNode         // renders below focusText, above rating
+  footer?: React.ReactNode         // renders just above the Save button
   saveDisabled?: boolean           // gate save until required upstream state is set
   hideSessionRating?: boolean      // suppress the session rating slider (e.g. when tasks are being rated)
 }
@@ -69,6 +70,7 @@ export function RatingForm({
   showGoalPrompt = false,
   goalOptions = [],
   header,
+  footer,
   saveDisabled = false,
   hideSessionRating = false,
 }: RatingFormProps) {
@@ -272,6 +274,8 @@ export function RatingForm({
           )}
         </div>
       )}
+
+      {footer && <div className="mb-4">{footer}</div>}
 
       <button
         onClick={handleSave}

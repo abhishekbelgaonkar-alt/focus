@@ -32,6 +32,9 @@ export default function RatePage() {
   const [branchReason, setBranchReason] = useState<EndReason | null>(null)
   const [stillFocusedMinutes, setStillFocusedMinutes] = useState<string>('')
 
+  // Save this session's shape as a reusable quick-start template.
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
+
   // Per-task ratings (0-5, whole numbers). Only set when the user taps a pip.
   const [taskRatings, setTaskRatings] = useState<Map<string, number>>(new Map())
   const setTaskRating = (taskId: string, rating: number | null) => {
@@ -243,6 +246,19 @@ export default function RatePage() {
         .eq('id', goalId)
     }
 
+    // Persist the just-finished session's shape as a reusable template if
+    // the user checked the "Save as quick start" box.
+    if (saveAsTemplate) {
+      await supabase.from('session_templates').insert({
+        user_id: user.id,
+        goal_id: goalId,
+        name: finalSessionName ?? 'Untitled session',
+        planned_duration_minutes: session.plannedDurationMinutes,
+        tasks: session.tasks.map((t) => ({ name: t.name })),
+        schedule: null,
+      })
+    }
+
     const { count } = await supabase
       .from('sessions')
       .select('*', { count: 'exact', head: true })
@@ -432,6 +448,19 @@ export default function RatePage() {
         header={header}
         saveDisabled={session.isExpired && branchReason === null}
         hideSessionRating={aggregateRating !== null}
+        footer={
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={saveAsTemplate}
+              onChange={(e) => setSaveAsTemplate(e.target.checked)}
+              className="mt-0.5 accent-coral"
+            />
+            <span className="font-sans text-xs text-text-muted">
+              Save this as a <strong className="text-text-primary font-medium">quick start</strong> — appears on the home page so you can run this exact session shape (name, tasks, duration, goal) again in one tap.
+            </span>
+          </label>
+        }
       />
       {errorMsg && (
         <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm font-sans z-50">

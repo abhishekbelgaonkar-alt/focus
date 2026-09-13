@@ -55,6 +55,18 @@ export interface SessionTask {
   created_at: string
 }
 
+export interface SessionTemplate {
+  id: string
+  user_id: string
+  goal_id: string | null
+  name: string
+  planned_duration_minutes: number
+  tasks: Array<{ name: string }>
+  schedule: Weekday[] | null
+  created_at: string
+  last_used_at: string | null
+}
+
 export interface PeriodNote {
   id: string
   user_id: string

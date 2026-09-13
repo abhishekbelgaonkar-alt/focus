@@ -78,6 +78,16 @@ function HomePageInner() {
   >([])
   const [incompleteTaskCount, setIncompleteTaskCount] = useState(0)
   const [goalStreaks, setGoalStreaks] = useState<Map<string, number>>(new Map())
+  const [templates, setTemplates] = useState<
+    Array<{
+      id: string
+      goal_id: string | null
+      name: string
+      planned_duration_minutes: number
+      tasks: Array<{ name: string }>
+      schedule: string[] | null
+    }>
+  >([])
   const [incompleteTasks, setIncompleteTasks] = useState<
     Array<{
       id: string
@@ -144,7 +154,7 @@ function HomePageInner() {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
 
-        const [{ data: stats }, inProgressQuery] = await Promise.all([
+        const [{ data: stats }, inProgressQuery, tmplQuery] = await Promise.all([
           supabase.rpc('get_goal_stats'),
           // Paused / saved-for-later sessions
           supabase
@@ -155,11 +165,20 @@ function HomePageInner() {
             .eq('user_id', data.user.id)
             .eq('status', 'in_progress')
             .order('created_at', { ascending: false }),
+          // Reusable session recipes
+          supabase
+            .from('session_templates')
+            .select('id, goal_id, name, planned_duration_minutes, tasks, schedule')
+            .eq('user_id', data.user.id)
+            .order('last_used_at', { ascending: false, nullsFirst: false }),
         ])
         const all = (stats ?? []) as GoalStat[]
         setGoalStats(all)
         setInProgressSessions(
           (inProgressQuery.data ?? []) as unknown as typeof inProgressSessions
+        )
+        setTemplates(
+          (tmplQuery.data ?? []) as unknown as typeof templates
         )
 
         // Tasks that were never checked off, in concluded sessions.
@@ -276,6 +295,32 @@ function HomePageInner() {
   const handleContinueGoal = (goalId: string) => {
     const g = goalStats.find((s) => s.goal_id === goalId)
     if (g) selectExistingGoal(goalId, g.name)
+  }
+
+  // Load a template's shape into the setup form: focus text, duration,
+  // tasks, and optional goal. User can edit anything before hitting Start.
+  const handleUseTemplate = (t: (typeof templates)[number]) => {
+    setFocusText(t.name)
+    setDuration(t.planned_duration_minutes)
+    setTaskDrafts(
+      t.tasks.map((task) => ({
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36),
+        name: task.name,
+      }))
+    )
+    if (t.goal_id) {
+      const g = goalStats.find((s) => s.goal_id === t.goal_id)
+      if (g) {
+        setGoalMode({ kind: 'existing', id: t.goal_id, name: g.name })
+      }
+    } else {
+      setGoalMode({ kind: 'none' })
+    }
+    // Fire-and-forget: bump last_used_at so recent templates rank higher.
+    void supabase
+      .from('session_templates')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', t.id)
   }
 
   // Resume a paused session — pull its full state + tasks, hydrate the browser
@@ -719,27 +764,142 @@ function HomePageInner() {
             {todayDate}
           </p>
 
-          {todayGoals.length > 0 && (
-            <div className="bg-coral-light rounded-xl p-4">
-              <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide">
-                Today&apos;s plan
-              </p>
-              <p className="font-sans text-xs text-tag-text/70 mb-3 mt-0.5">
-                Goals you scheduled for {new Date().toLocaleDateString('en-US', { weekday: 'long' })}.
-              </p>
-              <div className="flex flex-col gap-2">
-                {todayGoals.map((g) => (
+          {(() => {
+            const weekdayName = new Date().toLocaleDateString('en-US', { weekday: 'long' })
+            const weekdayShort = WEEKDAYS[new Date().getDay()]
+            const scheduledTemplates = templates.filter((t) =>
+              t.schedule?.includes(weekdayShort) ?? false
+            )
+            const quickStartTemplates = templates.filter(
+              (t) => !(t.schedule?.includes(weekdayShort) ?? false)
+            )
+            const hasReminders = todayGoals.length > 0
+            const hasScheduled = scheduledTemplates.length > 0
+            const hasQuickStarts = quickStartTemplates.length > 0
+            const hasTodayContent = hasReminders || hasScheduled
+
+            return (
+              <>
+                {hasTodayContent && (
+                  <div className="bg-coral-light rounded-xl p-4">
+                    <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide">
+                      Today&apos;s plan
+                    </p>
+                    <p className="font-sans text-xs text-tag-text/70 mb-3 mt-0.5">
+                      Scheduled for {weekdayName}.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                      {/* Goal reminders — one-line, dot + name */}
+                      {todayGoals.map((g) => {
+                        const color = getGoalColor({ id: g.goal_id, color: g.color })
+                        return (
+                          <button
+                            key={`goal-${g.goal_id}`}
+                            onClick={() => handleContinueGoal(g.goal_id)}
+                            className="w-full text-left flex items-center gap-2"
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="font-sans text-sm font-medium text-text-primary truncate">
+                              {g.name}
+                            </span>
+                          </button>
+                        )
+                      })}
+
+                      {/* Scheduled templates — two-line, dot + name + meta */}
+                      {scheduledTemplates.map((t) => {
+                        const linkedGoal = t.goal_id
+                          ? goalStats.find((g) => g.goal_id === t.goal_id)
+                          : null
+                        const color = linkedGoal
+                          ? getGoalColor({ id: linkedGoal.goal_id, color: linkedGoal.color })
+                          : '#c9b79c'
+                        const taskCount = t.tasks?.length ?? 0
+                        return (
+                          <button
+                            key={`tmpl-${t.id}`}
+                            onClick={() => handleUseTemplate(t)}
+                            className="w-full text-left flex items-start gap-2"
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0 mt-1.5"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-sans text-sm font-medium text-text-primary truncate">
+                                {t.name}
+                              </span>
+                              <span className="block font-sans text-xs text-tag-text/70 mt-0.5">
+                                {t.planned_duration_minutes} min
+                                {taskCount > 0 && ` · ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`}
+                              </span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick starts — non-scheduled templates for one-tap use */}
+                <div>
+                  <p className="font-sans text-xs text-text-muted uppercase tracking-wide">
+                    Quick starts
+                  </p>
+                  <p className="font-sans text-xs text-text-light mt-0.5 mb-3">
+                    {hasQuickStarts
+                      ? 'Recipes for sessions you run often.'
+                      : 'Save any session as a quick start from the save screen — it’ll appear here to run again in one tap.'}
+                  </p>
+
+                  {hasQuickStarts && (
+                    <div className="flex flex-col gap-3 mb-3">
+                      {quickStartTemplates.map((t) => {
+                        const linkedGoal = t.goal_id
+                          ? goalStats.find((g) => g.goal_id === t.goal_id)
+                          : null
+                        const color = linkedGoal
+                          ? getGoalColor({ id: linkedGoal.goal_id, color: linkedGoal.color })
+                          : '#c9b79c'
+                        const taskCount = t.tasks?.length ?? 0
+                        return (
+                          <button
+                            key={`quick-${t.id}`}
+                            onClick={() => handleUseTemplate(t)}
+                            className="w-full text-left flex items-start gap-2"
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0 mt-1.5"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-sans text-sm font-medium text-text-primary truncate">
+                                {t.name}
+                              </span>
+                              <span className="block font-sans text-xs text-text-muted mt-0.5">
+                                {t.planned_duration_minutes} min
+                                {taskCount > 0 && ` · ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`}
+                              </span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
                   <button
-                    key={g.goal_id}
-                    onClick={() => handleContinueGoal(g.goal_id)}
-                    className="text-left font-sans text-sm font-medium text-text-primary"
+                    onClick={() => router.push('/templates/new')}
+                    className="w-full text-left font-sans text-xs px-3 py-1.5 rounded-pill border-[1.5px] border-dashed border-border-warm text-text-muted"
                   >
-                    {g.name}
+                    + New quick start
                   </button>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              </>
+            )
+          })()}
         </div>
       </div>
 
