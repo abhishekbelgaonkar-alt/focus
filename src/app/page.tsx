@@ -4,9 +4,18 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
-import { HowItWorksModal } from '@/components/HowItWorksModal'
-import { AboutModal } from '@/components/AboutModal'
+import dynamic from 'next/dynamic'
 import { FriendsDropdown } from '@/components/FriendsDropdown'
+// Modals are lazy-loaded — they're gated behind a tap, so keeping them out of
+// the initial home-page bundle shaves parse/eval time on first paint.
+const HowItWorksModal = dynamic(
+  () => import('@/components/HowItWorksModal').then((m) => m.HowItWorksModal),
+  { ssr: false }
+)
+const AboutModal = dynamic(
+  () => import('@/components/AboutModal').then((m) => m.AboutModal),
+  { ssr: false }
+)
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { WeekdayPicker } from '@/components/WeekdayPicker'
@@ -433,6 +442,9 @@ function HomePageInner() {
     const elapsedSec = row.elapsed_seconds ?? 0
     // Virtual startedAt: pretend the session started `elapsedSec` seconds ago,
     // with no accumulated pauses — the countdown then reads exactly (planned - elapsed).
+    // Date.now() is safe here: this whole function is a user-triggered click
+    // handler, not part of the render path.
+    // eslint-disable-next-line react-hooks/purity
     const virtualStartedAt = new Date(Date.now() - elapsedSec * 1000).toISOString()
 
     saveSession({

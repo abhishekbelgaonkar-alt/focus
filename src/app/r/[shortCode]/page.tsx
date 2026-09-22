@@ -62,10 +62,14 @@ export default function RoomPage({ params }: Props) {
   // written to the server; purely a local view.
   const [personalDurationOverride, setPersonalDurationOverride] = useState<number | null>(null)
 
-  // Tick state to force re-renders every second for the countdown.
+  // Tick state. Everything on this page displays at minute resolution
+  // (formatDuration + "25m in, 10m left"), so a 1-second tick would just
+  // re-render the entire tree 60x/minute for a display that only changes
+  // when a minute rolls over. 15 seconds gives a max ~15s lag on the
+  // minute boundary, which is imperceptible for a shared focus timer.
   const [nowMs, setNowMs] = useState(() => Date.now())
   useEffect(() => {
-    const interval = window.setInterval(() => setNowMs(Date.now()), 1000)
+    const interval = window.setInterval(() => setNowMs(Date.now()), 15_000)
     return () => window.clearInterval(interval)
   }, [])
 

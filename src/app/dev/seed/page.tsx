@@ -335,10 +335,8 @@ export default function SeedDemoPage() {
           sessionCount++
 
           if (s.tasks && s.tasks.length > 0) {
-            let cumSec = 0
             const rows = s.tasks.map((t, i) => {
               const share = Math.round((s.durationMin * 60) / s.tasks!.length)
-              cumSec += share
               return {
                 session_id: sessionRow.id,
                 name: t.name,

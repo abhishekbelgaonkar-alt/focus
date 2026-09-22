@@ -46,11 +46,11 @@ export function AccountNudge({ sessionCount, onDismiss }: AccountNudgeProps) {
         </button>
 
         <p className="font-sans text-sm text-text-primary mb-1">
-          You've logged{' '}
+          You&apos;ve logged{' '}
           <strong>{sessionCount} session{sessionCount !== 1 ? 's' : ''}</strong> so far.
         </p>
         <p className="font-sans text-sm text-text-muted mb-4">
-          Create an account so you don't lose this if you switch devices or clear your browser.
+          Create an account so you don&apos;t lose this if you switch devices or clear your browser.
         </p>
 
         {success ? (

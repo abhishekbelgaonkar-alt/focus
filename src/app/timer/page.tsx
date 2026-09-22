@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { loadSession, saveSession, clearSession } from '@/lib/session-state'
 import { getRemainingMs, formatTime, isTimerExpired } from '@/lib/timer'
@@ -79,22 +79,24 @@ export default function TimerPage() {
     })()
   }, [])
 
-  const tick = useCallback(() => {
-    setTimer((prev) => {
-      if (!prev) return prev
-      if (prev.pausedAt === null) {
-        const remaining = getRemainingMs(prev.startedAt, prev.plannedMs, null, prev.totalPausedMs)
-        setDisplayMs(remaining)
-      }
-      return prev
-    })
-    rafRef.current = requestAnimationFrame(tick)
-  }, [])
-
+  // Ref-based rAF loop. Using a ref sidesteps the "tick accessed before it
+  // is declared" issue you get when a useCallback recursively refers to
+  // itself, and keeps deps empty for a stable subscription.
   useEffect(() => {
-    rafRef.current = requestAnimationFrame(tick)
+    const loop = () => {
+      setTimer((prev) => {
+        if (!prev) return prev
+        if (prev.pausedAt === null) {
+          const remaining = getRemainingMs(prev.startedAt, prev.plannedMs, null, prev.totalPausedMs)
+          setDisplayMs(remaining)
+        }
+        return prev
+      })
+      rafRef.current = requestAnimationFrame(loop)
+    }
+    rafRef.current = requestAnimationFrame(loop)
     return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current) }
-  }, [tick])
+  }, [])
 
   const handlePause = () => {
     setTimer((prev) => {
@@ -214,6 +216,8 @@ export default function TimerPage() {
   // = current session elapsed - sum of already-completed tasks' elapsed values
   const toggleTask = (taskId: string) => {
     if (!session || !timer) return
+    // Handler is invoked from a checkbox click, never during render.
+    // eslint-disable-next-line react-hooks/purity
     const now = timer.pausedAt ?? Date.now()
     const elapsedSec = Math.max(
       0,
@@ -272,7 +276,7 @@ export default function TimerPage() {
     >
       {session.setupFocusText && (
         <>
-          <p className="text-sm text-text-muted mb-2 font-sans">Today, you're working on</p>
+          <p className="text-sm text-text-muted mb-2 font-sans">Today, you&apos;re working on</p>
           <h1 className="text-xl font-medium text-text-primary mb-12 text-center font-sans max-w-xs">
             {session.setupFocusText}
           </h1>
@@ -369,7 +373,7 @@ export default function TimerPage() {
           onClick={handleDone}
           className="flex-1 bg-coral text-white font-sans font-medium py-3 rounded-pill"
         >
-          I'm done
+          I&apos;m done
         </button>
       </div>
 
