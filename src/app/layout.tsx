@@ -19,8 +19,8 @@ const quicksand = Quicksand({
 })
 
 export const metadata: Metadata = {
-  title: 'Focus',
-  description: 'Track your focus sessions',
+  title: 'Tokiroom',
+  description: 'A quiet space for focused work.',
 }
 
 // Runs synchronously in <head> BEFORE React hydrates so the correct theme

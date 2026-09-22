@@ -1,4 +1,5 @@
 import { formatDuration, formatDateTime } from '@/lib/format'
+import { getRatingTierColor } from '@/lib/stats'
 
 interface SessionRowProps {
   id: string
@@ -22,9 +23,10 @@ export function SessionRow({
   taskCount,
   onClick,
 }: SessionRowProps) {
-  const rest = [
+  // Meta line: date + task count. Duration is hoisted out to the trailing
+  // slot so time is the eye-catch on every row.
+  const meta = [
     formatDateTime(startedAt),
-    formatDuration(actualDurationMinutes),
     taskCount && taskCount > 0
       ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`
       : null,
@@ -48,14 +50,23 @@ export function SessionRow({
               {' · '}
             </>
           )}
-          {rest.join(' · ')}
+          {meta.join(' · ')}
         </p>
       </div>
-      {rating !== null && (
-        <span className="font-numbers text-sm font-semibold text-text-muted shrink-0">
-          {rating.toFixed(1)}
+      {/* Trailing: duration as the number, rating as a small colored dot. */}
+      <div className="flex items-center gap-2 shrink-0">
+        {rating !== null && (
+          <span
+            aria-label={`rating ${rating.toFixed(1)}`}
+            title={`Rating ${rating.toFixed(1)}`}
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: getRatingTierColor(rating) }}
+          />
+        )}
+        <span className="font-numbers text-sm font-semibold text-text-primary">
+          {formatDuration(actualDurationMinutes)}
         </span>
-      )}
+      </div>
     </button>
   )
 }

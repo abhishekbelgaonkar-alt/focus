@@ -59,7 +59,7 @@ export default function GoalSchedulePage({ params }: { params: Promise<{ id: str
 
       {selectedDays.length === 0 && (
         <p className="font-sans text-xs text-text-muted mt-3">
-          No days selected — schedule will be cleared.
+          No days selected. Schedule will be cleared.
         </p>
       )}
 

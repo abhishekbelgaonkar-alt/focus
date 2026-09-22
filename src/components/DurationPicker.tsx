@@ -82,7 +82,7 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
               if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEdit() }
             }}
             className="font-numbers text-7xl font-semibold text-text-primary leading-none cursor-text select-none"
-            aria-label={`Duration ${value} minutes — click to edit`}
+            aria-label={`Duration ${value} minutes, click to edit`}
           >
             {value}
           </span>

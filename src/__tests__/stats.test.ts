@@ -36,52 +36,63 @@ describe('calcDayStreak', () => {
   })
 })
 
+// Colors are now CSS variable references so the heatmap/chart follow the
+// active theme. Tests check the token identity, not the resolved hex.
 describe('getRatingTierColor', () => {
-  it('returns the pale color for null (no session)', () => {
-    expect(getRatingTierColor(null)).toBe('#f0ece2')
+  it('returns the "none" token for null (no session)', () => {
+    expect(getRatingTierColor(null)).toBe('var(--color-heatmap-none)')
   })
 
   it.each([
-    [1.0, '#f3d9bd'],
-    [1.5, '#f3d9bd'],
-    [2.0, '#f3d9bd'],
-    [2.1, '#f0b587'],
-    [3.0, '#f0b587'],
-    [3.1, '#e8905a'],
-    [4.0, '#e8905a'],
-    [4.1, '#d9642e'],
-    [5.0, '#d9642e'],
+    [1.0, 'var(--color-heatmap-low)'],
+    [1.5, 'var(--color-heatmap-low)'],
+    [2.0, 'var(--color-heatmap-low)'],
+    [2.1, 'var(--color-heatmap-mid)'],
+    [3.0, 'var(--color-heatmap-mid)'],
+    [3.1, 'var(--color-heatmap-high)'],
+    [4.0, 'var(--color-heatmap-high)'],
+    [4.1, 'var(--color-heatmap-peak)'],
+    [5.0, 'var(--color-heatmap-peak)'],
   ])('rating %f → %s', (rating, expected) => {
     expect(getRatingTierColor(rating)).toBe(expected)
   })
 })
 
 const SESSIONS = [
-  { id: 'a', started_at: '2026-09-01T10:00:00Z', rating: 4.0, goals: { name: 'Study' }, session_name: 'Ch. 1' },
-  { id: 'b', started_at: '2026-09-01T14:00:00Z', rating: 3.0, goals: { name: 'Study' }, session_name: null },
-  { id: 'c', started_at: '2026-09-08T09:00:00Z', rating: 5.0, goals: null, session_name: 'Deep work' },
+  { id: 'a', started_at: '2026-09-01T10:00:00Z', rating: 4.0, actual_duration_minutes: 25, goals: { name: 'Study' }, session_name: 'Ch. 1' },
+  { id: 'b', started_at: '2026-09-01T14:00:00Z', rating: 3.0, actual_duration_minutes: 45, goals: { name: 'Study' }, session_name: null },
+  { id: 'c', started_at: '2026-09-08T09:00:00Z', rating: 5.0, actual_duration_minutes: 50, goals: null, session_name: 'Deep work' },
 ]
 
 describe('getDayViewPoints', () => {
-  it('returns one point per rated session, sorted by date', () => {
+  it('returns one point per session, sorted by date', () => {
     const pts = getDayViewPoints(SESSIONS)
     expect(pts).toHaveLength(3)
     expect(pts[0].sessionId).toBe('a')
     expect(pts[0].rating).toBe(4.0)
+    expect(pts[0].minutes).toBe(25)
   })
 
-  it('skips sessions with null rating', () => {
-    const withNull = [...SESSIONS, { id: 'd', started_at: '2026-09-09T10:00:00Z', rating: null, goals: null, session_name: null }]
-    expect(getDayViewPoints(withNull)).toHaveLength(3)
+  it('includes unrated sessions but flags them via hasRating', () => {
+    const withNull = [
+      ...SESSIONS,
+      { id: 'd', started_at: '2026-09-09T10:00:00Z', rating: null, actual_duration_minutes: 30, goals: null, session_name: null },
+    ]
+    const pts = getDayViewPoints(withNull)
+    expect(pts).toHaveLength(4)
+    const unrated = pts.find((p) => p.sessionId === 'd')!
+    expect(unrated.hasRating).toBe(false)
+    expect(unrated.minutes).toBe(30)
   })
 })
 
 describe('getWeekViewPoints', () => {
-  it('averages multiple sessions on the same day into one point', () => {
+  it('averages ratings and sums minutes across same-day sessions', () => {
     const pts = getWeekViewPoints(SESSIONS)
     const sep1 = pts.find(p => p.date === '2026-09-01')
     expect(sep1).toBeDefined()
     expect(sep1!.rating).toBe(3.5)
+    expect(sep1!.minutes).toBe(70)  // 25 + 45
   })
 
   it('produces one point per unique day', () => {
@@ -134,7 +145,6 @@ describe('generateCSV', () => {
     end_reason: 'on_time' as const,
     goals: { name: 'Work' },
     categories: null,
-    session_distraction_tags: [{ distraction_tags: { name: 'Phone' } }],
   }
 
   it('produces a CSV string with a header row and one data row', () => {
@@ -142,10 +152,6 @@ describe('generateCSV', () => {
     expect(lines[0]).toContain('id')
     expect(lines[0]).toContain('rating')
     expect(lines).toHaveLength(2)
-  })
-
-  it('includes tag names in the tags column', () => {
-    expect(generateCSV([SESSION])).toContain('Phone')
   })
 
   it('escapes double-quotes inside cell values', () => {

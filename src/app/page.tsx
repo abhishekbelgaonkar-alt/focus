@@ -5,8 +5,12 @@ import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
 import { HowItWorksModal } from '@/components/HowItWorksModal'
+import { AboutModal } from '@/components/AboutModal'
+import { FriendsDropdown } from '@/components/FriendsDropdown'
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { WeekdayPicker } from '@/components/WeekdayPicker'
+import type { Weekday } from '@/lib/types'
 import { timeAgo } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
 import { calcDayStreak } from '@/lib/stats'
@@ -38,7 +42,6 @@ const NEW_GOAL_PLACEHOLDERS = [
 ]
 import { saveSession } from '@/lib/session-state'
 import { formatDuration } from '@/lib/format'
-import type { Weekday } from '@/lib/types'
 
 interface GoalStat {
   goal_id: string
@@ -78,6 +81,29 @@ function HomePageInner() {
   >([])
   const [incompleteTaskCount, setIncompleteTaskCount] = useState(0)
   const [goalStreaks, setGoalStreaks] = useState<Map<string, number>>(new Map())
+  const [weeklyStats, setWeeklyStats] = useState<{ count: number; minutes: number } | null>(null)
+
+  // Inline scheduler on the home page — expands when "+ Schedule a goal" is tapped.
+  const [scheduling, setScheduling] = useState(false)
+  const [scheduleGoalId, setScheduleGoalId] = useState<string>('')
+  const [scheduleDays, setScheduleDays] = useState<Weekday[]>([])
+  const [savingSchedule, setSavingSchedule] = useState(false)
+
+  const saveSchedule = async () => {
+    if (!scheduleGoalId || scheduleDays.length === 0 || savingSchedule) return
+    setSavingSchedule(true)
+    await supabase.from('goals').update({ schedule: scheduleDays }).eq('id', scheduleGoalId)
+    // Refresh goalStats so Today's plan re-computes with the new schedule.
+    const { data: stats } = await supabase.rpc('get_goal_stats')
+    const all = (stats ?? []) as GoalStat[]
+    setGoalStats(all)
+    const today = WEEKDAYS[new Date().getDay()]
+    setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
+    setScheduling(false)
+    setScheduleGoalId('')
+    setScheduleDays([])
+    setSavingSchedule(false)
+  }
   const [templates, setTemplates] = useState<
     Array<{
       id: string
@@ -102,6 +128,10 @@ function HomePageInner() {
   >([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const [friendsOpen, setFriendsOpen] = useState(false)
+  const [pendingRequestCount, setPendingRequestCount] = useState(0)
+  const [isAnonymousUser, setIsAnonymousUser] = useState(true)
 
   // Timer setup state — lives on the home screen.
   const [duration, setDuration] = useState(DEFAULT_DURATION)
@@ -153,6 +183,15 @@ function HomePageInner() {
       try {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
+        setIsAnonymousUser(!data.user.email)
+
+        // Pending friend requests inbound to this user. Cheap count query
+        // for the nav-button dot indicator.
+        supabase
+          .from('friend_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('to_user_id', data.user.id)
+          .then(({ count }) => setPendingRequestCount(count ?? 0))
 
         const [{ data: stats }, inProgressQuery, tmplQuery] = await Promise.all([
           supabase.rpc('get_goal_stats'),
@@ -180,6 +219,22 @@ function HomePageInner() {
         setTemplates(
           (tmplQuery.data ?? []) as unknown as typeof templates
         )
+
+        // This-week stats — Monday 00:00 to now. Session count + total minutes.
+        const wkStart = new Date()
+        const dow = wkStart.getDay()
+        const back = dow === 0 ? 6 : dow - 1  // ISO week: Monday-first
+        wkStart.setDate(wkStart.getDate() - back)
+        wkStart.setHours(0, 0, 0, 0)
+        const { data: weekly, count: weekCount } = await supabase
+          .from('sessions')
+          .select('actual_duration_minutes', { count: 'exact' })
+          .eq('user_id', data.user.id)
+          .eq('status', 'completed')
+          .gte('started_at', wkStart.toISOString())
+        const weekMinutes = ((weekly ?? []) as { actual_duration_minutes: number | null }[])
+          .reduce((s, x) => s + (x.actual_duration_minutes ?? 0), 0)
+        setWeeklyStats({ count: weekCount ?? 0, minutes: weekMinutes })
 
         // Tasks that were never checked off, in concluded sessions.
         // One query for both the preview list and the total count.
@@ -286,8 +341,47 @@ function HomePageInner() {
         elapsedSecondsAtCompletion: null,
       })),
       existingSessionId: null,
+      roomId: null,
     })
     router.push('/timer')
+  }
+
+  // Create a shared room with the current setup and route to it. The host
+  // becomes the first participant; the room page handles timer + presence.
+  const handleStartRoom = async () => {
+    let goalId: string | null = null
+    let goalLabel: string | null = null
+
+    if (goalMode.kind === 'existing') {
+      goalId = goalMode.id
+      const g = goalStats.find((s) => s.goal_id === goalMode.id)
+      goalLabel = g?.name ?? null
+    } else if (goalMode.kind === 'new' && newGoalName.trim()) {
+      const { data: userData } = await supabase.auth.getUser()
+      if (userData?.user) {
+        const { data: newGoal } = await supabase
+          .from('goals')
+          .insert({ user_id: userData.user.id, name: newGoalName.trim() })
+          .select()
+          .single()
+        goalId = newGoal?.id ?? null
+        goalLabel = newGoalName.trim()
+      }
+    }
+
+    const { data: code, error } = await supabase.rpc('create_room', {
+      p_duration: duration,
+      p_session_name: focusText.trim() || null,
+      p_goal_id: goalId,
+      p_goal_label: goalLabel,
+      p_tasks: taskDrafts.map((t) => ({ name: t.name })),
+      p_propagate_setup: true,
+    })
+
+    if (error || !code) {
+      return
+    }
+    router.push(`/r/${code}`)
   }
 
   // In-page click: just apply the goal directly to local state. No URL push
@@ -351,6 +445,7 @@ function HomePageInner() {
       actualDurationMinutes: null,
       isExpired: false,
       existingSessionId: row.id,
+      roomId: null,
       tasks: (row.session_tasks ?? [])
         .slice()
         .sort((a, b) => a.position - b.position)
@@ -385,6 +480,21 @@ function HomePageInner() {
           sits at page center; falls back to flex-wrap on mobile ────── */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-6 relative z-40 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-x-6">
         <div className="flex items-center gap-5">
+          {/* Brand mark — 時 with a small "tokiroom" label underneath.
+              No border, no accent fill — reads as a logo, not a button.
+              The soft warm-gray disc is subtle enough to feel decorative
+              rather than tappable. */}
+          <div
+            aria-label="Tokiroom"
+            className="flex flex-col items-center gap-0.5 shrink-0 select-none"
+          >
+            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-border-warm text-text-primary text-sm leading-none">
+              時
+            </span>
+            <span className="font-sans text-[8px] text-text-light tracking-wider lowercase leading-none">
+              tokiroom
+            </span>
+          </div>
           <button
             onClick={() => router.push('/goals')}
             className="font-sans text-sm text-text-muted whitespace-nowrap"
@@ -397,6 +507,37 @@ function HomePageInner() {
           >
             How it works
           </button>
+          <button
+            onClick={() => setAboutOpen(true)}
+            className="font-sans text-sm text-text-muted whitespace-nowrap"
+          >
+            About
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => {
+                setFriendsOpen((o) => !o)
+                // Clear the badge as soon as the user opens the dropdown;
+                // the section itself lists the actual requests.
+                if (!friendsOpen) setPendingRequestCount(0)
+              }}
+              className="font-sans text-sm text-text-muted whitespace-nowrap relative"
+            >
+              Friends
+              {pendingRequestCount > 0 && (
+                <span
+                  aria-label={`${pendingRequestCount} pending`}
+                  className="absolute -top-1 -right-2 w-2 h-2 rounded-full"
+                  style={{ backgroundColor: 'var(--color-coral)' }}
+                />
+              )}
+            </button>
+            <FriendsDropdown
+              open={friendsOpen}
+              onClose={() => setFriendsOpen(false)}
+              isAnonymous={isAnonymousUser}
+            />
+          </div>
         </div>
         <div className="w-full max-w-sm md:justify-self-center">
           <SearchBar onOpenChange={setSearchOpen} />
@@ -418,6 +559,26 @@ function HomePageInner() {
         </div>
       </div>
 
+      {/* ── Weekly stats — subtle line right below the search bar ─────── */}
+      <p className="font-sans text-xs text-text-muted text-center mb-6">
+        {weeklyStats === null ? (
+          <span className="text-text-light">Loading this week…</span>
+        ) : weeklyStats.count === 0 ? (
+          <span className="text-text-light">No sessions logged yet this week.</span>
+        ) : (
+          <>
+            <span className="font-numbers font-medium text-text-primary">
+              {formatDuration(weeklyStats.minutes)}
+            </span>
+            {' · '}
+            <span className="font-numbers font-medium text-text-primary">
+              {weeklyStats.count}
+            </span>{' '}
+            {weeklyStats.count === 1 ? 'session' : 'sessions'} this week
+          </>
+        )}
+      </p>
+
       {/* ── Three-column grid: LEFT (goals) | CENTER (timer) | RIGHT (date + plan).
           Side columns are equal (both minmax(0,1fr)), so the center column —
           and the timer inputs inside it — sit at page center. Right column
@@ -434,7 +595,7 @@ function HomePageInner() {
             What are you working on?
           </label>
           <p className="text-sm text-text-muted mb-4">
-            Becomes the session&apos;s name — link a goal below to track it over time
+            Becomes the session&apos;s name. Link a goal below to track it over time.
           </p>
           <div className="relative mb-8">
             <input
@@ -521,7 +682,7 @@ function HomePageInner() {
               Tasks <span className="text-text-light">(optional)</span>
             </label>
             <p className="font-sans text-xs text-text-light mb-3 mt-0.5">
-              Break the session into steps — check them off as you go and see how long each takes
+              Break the session into steps. Check them off as you go and see how long each takes.
             </p>
             {taskDrafts.length > 0 && (
               <ol className="flex flex-col mb-3">
@@ -572,6 +733,12 @@ function HomePageInner() {
             className="w-full bg-coral text-white font-sans font-medium text-base py-3 rounded-pill mt-10"
           >
             Start focus session
+          </button>
+          <button
+            onClick={handleStartRoom}
+            className="w-full font-sans text-sm text-text-muted py-3 mt-2"
+          >
+            Focus with someone
           </button>
         </div>
 
@@ -760,7 +927,24 @@ function HomePageInner() {
             (Today's plan). Column width matches the left column so the
             CENTER (timer) stays at page center. */}
         <div className="md:col-start-3 md:row-start-1 flex flex-col gap-6">
-          <p className="font-sans text-sm text-text-muted">
+          <p className="font-sans text-sm text-text-muted flex items-center gap-2">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className="shrink-0"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
             {todayDate}
           </p>
 
@@ -777,9 +961,102 @@ function HomePageInner() {
             const hasScheduled = scheduledTemplates.length > 0
             const hasQuickStarts = quickStartTemplates.length > 0
             const hasTodayContent = hasReminders || hasScheduled
+            // Goals the user could add to a schedule (has no schedule yet, OR has one
+            // but not for today — either way, adding today makes sense).
+            const schedulableGoals = goalStats.filter(
+              (g) => !(g.schedule?.includes(weekdayShort) ?? false)
+            )
 
             return (
               <>
+                {/* Empty-state: nothing scheduled for today → discoverable scheduler. */}
+                {!hasTodayContent && (
+                  <div className="border border-dashed border-border-warm rounded-xl p-4">
+                    <p className="font-sans text-xs font-medium text-text-muted uppercase tracking-wide">
+                      Today&apos;s plan
+                    </p>
+                    <p className="font-sans text-xs text-text-light mt-0.5 mb-3">
+                      Nothing scheduled for {weekdayName}. Pin a goal to specific
+                      days and it&apos;ll show up here as a gentle nudge.
+                    </p>
+
+                    {!scheduling ? (
+                      <button
+                        onClick={() => {
+                          if (schedulableGoals.length === 0) {
+                            router.push('/rate?intent=new-goal')
+                            return
+                          }
+                          setScheduling(true)
+                          setScheduleGoalId(schedulableGoals[0].goal_id)
+                          setScheduleDays([weekdayShort])
+                        }}
+                        className="w-full text-left font-sans text-xs px-3 py-1.5 rounded-pill border-[1.5px] border-dashed border-border-warm text-text-muted"
+                      >
+                        {schedulableGoals.length === 0
+                          ? '+ Create a goal first'
+                          : '+ Schedule a goal'}
+                      </button>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <p className="font-sans text-xs text-text-muted mb-2">Goal</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {schedulableGoals.map((g) => {
+                              const color = getGoalColor({ id: g.goal_id, color: g.color })
+                              const active = scheduleGoalId === g.goal_id
+                              return (
+                                <button
+                                  key={g.goal_id}
+                                  onClick={() => setScheduleGoalId(g.goal_id)}
+                                  className={`px-2.5 py-1 rounded-pill text-xs font-sans border-[1.5px] flex items-center gap-1.5 ${
+                                    active
+                                      ? 'bg-coral-light border-coral text-tag-text'
+                                      : 'bg-transparent border-border-warm text-text-muted'
+                                  }`}
+                                >
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{ backgroundColor: color }}
+                                  />
+                                  {g.name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-sans text-xs text-text-muted mb-2">Days</p>
+                          <WeekdayPicker selected={scheduleDays} onChange={setScheduleDays} />
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={saveSchedule}
+                            disabled={
+                              !scheduleGoalId ||
+                              scheduleDays.length === 0 ||
+                              savingSchedule
+                            }
+                            className="flex-1 bg-coral text-white font-sans text-xs font-medium py-2 rounded-pill disabled:opacity-50"
+                          >
+                            {savingSchedule ? 'Saving…' : 'Save schedule'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setScheduling(false)
+                              setScheduleGoalId('')
+                              setScheduleDays([])
+                            }}
+                            className="font-sans text-xs text-text-muted px-3"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {hasTodayContent && (
                   <div className="bg-coral-light rounded-xl p-4">
                     <p className="font-sans text-xs font-medium text-tag-text uppercase tracking-wide">
@@ -852,7 +1129,7 @@ function HomePageInner() {
                   <p className="font-sans text-xs text-text-light mt-0.5 mb-3">
                     {hasQuickStarts
                       ? 'Recipes for sessions you run often.'
-                      : 'Save any session as a quick start from the save screen — it’ll appear here to run again in one tap.'}
+                      : 'Save any session as a quick start from the save screen. It’ll appear here to run again in one tap.'}
                   </p>
 
                   {hasQuickStarts && (
@@ -904,6 +1181,7 @@ function HomePageInner() {
       </div>
 
       <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </main>
   )
 }

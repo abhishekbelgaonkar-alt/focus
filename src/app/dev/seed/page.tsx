@@ -25,7 +25,6 @@ interface DemoSession {
   daysAgo: number                // when it happened (days ago)
   hour?: number                  // 0-23 hour of day
   tasks?: DemoTask[]
-  distractions?: string[]        // subset of the seeded default tag names
 }
 
 interface DemoGoal {
@@ -42,9 +41,9 @@ const DEMO: DemoGoal[] = [
     color: '#7c3aed',
     sessions: [
       {
-        name: 'Lit review — antibiotic stewardship',
+        name: 'Lit review: antibiotic stewardship',
         durationMin: 60, rating: 4.0, daysAgo: 1, hour: 9,
-        notes: 'Found two useful Cochrane reviews. Bibliography now ~40 sources — need to filter.',
+        notes: 'Found two useful Cochrane reviews. Bibliography now ~40 sources: need to filter.',
         tasks: [
           { name: 'Skim Cochrane 2022 review', completed: true, rating: 4 },
           { name: 'Read Turner et al. NEJM', completed: true, rating: 4 },
@@ -52,7 +51,7 @@ const DEMO: DemoGoal[] = [
         ],
       },
       {
-        name: 'Ethics application — draft',
+        name: 'Ethics application: draft',
         durationMin: 75, rating: 3.5, daysAgo: 2, hour: 14,
         notes: 'REC form is long. Confidentiality section done; still need consent form appendix.',
         tasks: [
@@ -61,19 +60,18 @@ const DEMO: DemoGoal[] = [
           { name: 'Consent form appendix', completed: false },
           { name: 'Send to supervisor for review', completed: false },
         ],
-        distractions: ['Phone', 'Slack/chat'],
-      },
+              },
       {
         name: 'Methodology section',
         durationMin: 80, rating: 4.5, daysAgo: 4, hour: 10,
-        notes: 'Locked in. Got the study design flowchart drawn in Lucidchart — supervisor will love it.',
+        notes: 'Locked in. Got the study design flowchart drawn in Lucidchart: supervisor will love it.',
         tasks: [
           { name: 'Study design flowchart', completed: true, rating: 5 },
           { name: 'Sample size justification', completed: true, rating: 4 },
           { name: 'Statistical analysis plan', completed: true, rating: 4 },
         ],
       },
-      { name: 'Zotero cleanup', durationMin: 30, rating: 3.0, daysAgo: 6, hour: 16, distractions: ['Email'] },
+      { name: 'Zotero cleanup', durationMin: 30, rating: 3.0, daysAgo: 6, hour: 16 },
       {
         name: 'Supervisor meeting prep', durationMin: 25, rating: 4.0, daysAgo: 7, hour: 11,
         tasks: [
@@ -84,10 +82,9 @@ const DEMO: DemoGoal[] = [
       },
       { name: 'Data extraction template', durationMin: 45, rating: 3.5, daysAgo: 10, hour: 15 },
       {
-        name: 'Intro chapter — first pass', durationMin: 65, rating: 2.5, daysAgo: 12, hour: 20,
-        notes: 'Kept losing focus. Should not write chapters after 8pm — brain is fried after clinic.',
-        distractions: ['Phone', 'Tiredness', 'Social media'],
-      },
+        name: 'Intro chapter: first pass', durationMin: 65, rating: 2.5, daysAgo: 12, hour: 20,
+        notes: 'Kept losing focus. Should not write chapters after 8pm: brain is fried after clinic.',
+              },
       { name: 'Read Prof. Kelly’s papers', durationMin: 50, rating: 4.0, daysAgo: 15, hour: 10 },
       { name: 'Discussion outline', durationMin: 40, rating: 3.5, daysAgo: 18 },
       { name: 'PICO framework brainstorm', durationMin: 35, rating: 4.5, daysAgo: 22 },
@@ -106,29 +103,28 @@ const DEMO: DemoGoal[] = [
           { name: 'Presenting complaint', completed: true, rating: 5 },
           { name: 'SOCRATES pain history', completed: true, rating: 5 },
           { name: 'NYHA class questions', completed: true, rating: 4 },
-          { name: 'ICE — ideas / concerns / expectations', completed: true, rating: 5 },
+          { name: 'ICE: ideas / concerns / expectations', completed: true, rating: 5 },
         ],
       },
       {
-        name: 'Respiratory exam — practice partner',
+        name: 'Respiratory exam: practice partner',
         durationMin: 30, rating: 4.0, daysAgo: 1, hour: 17,
         tasks: [
           { name: 'Inspection', completed: true, rating: 4 },
           { name: 'Palpation + expansion', completed: true, rating: 4 },
           { name: 'Percussion sequence', completed: true, rating: 3 },
-          { name: 'Auscultation — bases → apices', completed: false },
+          { name: 'Auscultation: bases → apices', completed: false },
         ],
       },
-      { name: 'Cranial nerves examination', durationMin: 60, rating: 3.5, daysAgo: 3, hour: 13, distractions: ['Slack/chat', 'Meeting'], notes: 'Kept forgetting to test corneal reflex. Anki cards created.' },
+      { name: 'Cranial nerves examination', durationMin: 60, rating: 3.5, daysAgo: 3, hour: 13, notes: 'Kept forgetting to test corneal reflex. Anki cards created.' },
       { name: 'Breaking bad news scenario', durationMin: 40, rating: 4.0, daysAgo: 5 },
       {
-        name: 'Neurological exam — lower limbs',
+        name: 'Neurological exam: lower limbs',
         durationMin: 35, rating: 3.0, daysAgo: 8, hour: 11,
         notes: 'Sensory testing is still shaky. Need to review dermatomes tonight.',
-        distractions: ['Task felt too hard'],
-      },
+              },
       { name: 'Abdominal exam drill', durationMin: 45, rating: 3.5, daysAgo: 11 },
-      { name: 'Consultation skills — angry patient', durationMin: 30, rating: 4.5, daysAgo: 14, notes: 'The empathy framework really helped.' },
+      { name: 'Consultation skills: angry patient', durationMin: 30, rating: 4.5, daysAgo: 14, notes: 'The empathy framework really helped.' },
       { name: 'Peripheral vascular exam', durationMin: 40, rating: 4.0, daysAgo: 17 },
     ],
   },
@@ -137,40 +133,40 @@ const DEMO: DemoGoal[] = [
     color: '#16a34a',
     schedule: ['tue', 'thu', 'sun'],
     sessions: [
-      { name: 'Anki — antihypertensives', durationMin: 25, rating: 3.5, daysAgo: 0, hour: 8 },
-      { name: 'Anki — antibiotics', durationMin: 30, rating: 4.0, daysAgo: 1, hour: 8 },
-      { name: 'Anki — analgesics', durationMin: 20, rating: 3.0, daysAgo: 2, hour: 8, distractions: ['Tiredness'] },
+      { name: 'Anki: antihypertensives', durationMin: 25, rating: 3.5, daysAgo: 0, hour: 8 },
+      { name: 'Anki: antibiotics', durationMin: 30, rating: 4.0, daysAgo: 1, hour: 8 },
+      { name: 'Anki: analgesics', durationMin: 20, rating: 3.0, daysAgo: 2, hour: 8 },
       {
-        name: 'BNF chapter 2 — CV drugs',
+        name: 'BNF chapter 2: CV drugs',
         durationMin: 45, rating: 4.5, daysAgo: 3, hour: 19,
         tasks: [
-          { name: 'Beta blockers — MOA + SE', completed: true, rating: 5 },
-          { name: 'ACE inhibitors — indications', completed: true, rating: 4 },
-          { name: 'Diuretics — loops vs thiazides', completed: true, rating: 4 },
+          { name: 'Beta blockers: MOA + SE', completed: true, rating: 5 },
+          { name: 'ACE inhibitors: indications', completed: true, rating: 4 },
+          { name: 'Diuretics: loops vs thiazides', completed: true, rating: 4 },
           { name: 'Calcium channel blockers', completed: false },
         ],
       },
-      { name: 'Anki — antihypertensives', durationMin: 25, rating: 4.0, daysAgo: 4, hour: 8 },
+      { name: 'Anki: antihypertensives', durationMin: 25, rating: 4.0, daysAgo: 4, hour: 8 },
       {
-        name: 'Insulin regimens — group study',
+        name: 'Insulin regimens: group study',
         durationMin: 60, rating: 5.0, daysAgo: 7, hour: 18,
         notes: 'Explaining basal-bolus to Emma really solidified it for me. Feynman technique works.',
       },
-      { name: 'Anki — endocrine drugs', durationMin: 25, rating: 3.5, daysAgo: 8, hour: 8 },
-      { name: 'BNF — antipsychotics deep-dive', durationMin: 40, rating: 3.0, daysAgo: 10, hour: 20, distractions: ['Phone', 'Task felt too hard'] },
-      { name: 'Anki — GI pharmacology', durationMin: 20, rating: 3.5, daysAgo: 12, hour: 8 },
-      { name: 'Warfarin & INR — worked examples', durationMin: 35, rating: 4.0, daysAgo: 14, hour: 9 },
+      { name: 'Anki: endocrine drugs', durationMin: 25, rating: 3.5, daysAgo: 8, hour: 8 },
+      { name: 'BNF: antipsychotics deep-dive', durationMin: 40, rating: 3.0, daysAgo: 10, hour: 20 },
+      { name: 'Anki: GI pharmacology', durationMin: 20, rating: 3.5, daysAgo: 12, hour: 8 },
+      { name: 'Warfarin & INR: worked examples', durationMin: 35, rating: 4.0, daysAgo: 14, hour: 9 },
       { name: 'Anki reviews (mixed)', durationMin: 15, rating: 3.0, daysAgo: 16 },
-      { name: 'Prescribing safety — MCQs', durationMin: 30, rating: 4.5, daysAgo: 20 },
+      { name: 'Prescribing safety: MCQs', durationMin: 30, rating: 4.5, daysAgo: 20 },
     ],
   },
   {
-    name: 'Surgery rotation — St James’s',
+    name: 'Surgery rotation: St James’s',
     color: '#0d9488',
     schedule: ['tue', 'thu', 'sat'],
     sessions: [
       {
-        name: 'Ward round prep — Prof. O’Sullivan',
+        name: 'Ward round prep: Prof. O’Sullivan',
         durationMin: 30, rating: 3.5, daysAgo: 1, hour: 7,
         tasks: [
           { name: 'Read Mr. K’s notes (bed 4)', completed: true, rating: 4 },
@@ -179,7 +175,7 @@ const DEMO: DemoGoal[] = [
         ],
       },
       { name: 'Case write-up: 72M post-cholecystectomy', durationMin: 55, rating: 4.0, daysAgo: 3, hour: 20, notes: 'Complicated post-op recovery. Good learning case.' },
-      { name: 'Suturing skills lab', durationMin: 45, rating: 2.5, daysAgo: 5, hour: 14, distractions: ['Physical discomfort', 'Tiredness'], notes: 'Interrupted sutures are harder than they look. Fingers cramped by the end.' },
+      { name: 'Suturing skills lab', durationMin: 45, rating: 2.5, daysAgo: 5, hour: 14, notes: 'Interrupted sutures are harder than they look. Fingers cramped by the end.' },
       {
         name: 'Reflective portfolio entry',
         durationMin: 40, rating: 4.5, daysAgo: 8,
@@ -191,9 +187,9 @@ const DEMO: DemoGoal[] = [
           { name: 'Action plan', completed: true, rating: 5 },
         ],
       },
-      { name: 'Ward round prep', durationMin: 25, rating: 3.5, daysAgo: 11, distractions: ['Phone'] },
+      { name: 'Ward round prep', durationMin: 25, rating: 3.5, daysAgo: 11 },
       { name: 'Theatre observation notes', durationMin: 35, rating: 4.0, daysAgo: 15 },
-      { name: 'Surgical anatomy — abdomen', durationMin: 45, rating: 3.0, daysAgo: 19 },
+      { name: 'Surgical anatomy: abdomen', durationMin: 45, rating: 3.0, daysAgo: 19 },
     ],
   },
   {
@@ -202,7 +198,7 @@ const DEMO: DemoGoal[] = [
     status: 'completed',
     sessions: [
       {
-        name: 'PassMed — Endocrinology 50Qs', durationMin: 60, rating: 5.0, daysAgo: 21, hour: 17,
+        name: 'PassMed: Endocrinology 50Qs', durationMin: 60, rating: 5.0, daysAgo: 21, hour: 17,
         notes: 'Scored 42/50. Massive improvement from last month. Diabetes chapter clicked.',
         tasks: [
           { name: 'Do 50 questions timed', completed: true, rating: 5 },
@@ -210,9 +206,9 @@ const DEMO: DemoGoal[] = [
           { name: 'Anki-ify the tricky ones', completed: true, rating: 4 },
         ],
       },
-      { name: 'PassMed — Cardiology 40Qs', durationMin: 55, rating: 4.0, daysAgo: 23 },
-      { name: 'PassMed — Respiratory 30Qs', durationMin: 35, rating: 3.5, daysAgo: 25 },
-      { name: 'PassMed — Renal 40Qs', durationMin: 50, rating: 4.5, daysAgo: 28 },
+      { name: 'PassMed: Cardiology 40Qs', durationMin: 55, rating: 4.0, daysAgo: 23 },
+      { name: 'PassMed: Respiratory 30Qs', durationMin: 35, rating: 3.5, daysAgo: 25 },
+      { name: 'PassMed: Renal 40Qs', durationMin: 50, rating: 4.5, daysAgo: 28 },
     ],
   },
 ]
@@ -227,7 +223,7 @@ const DEMO_IN_PROGRESS: {
 }[] = [
   {
     goalName: 'Final-year research project',
-    name: 'Results chapter — first draft',
+    name: 'Results chapter: first draft',
     plannedMin: 90,
     elapsedSec: 34 * 60,
     tasks: [
@@ -239,7 +235,7 @@ const DEMO_IN_PROGRESS: {
   },
   {
     goalName: 'OSCE prep',
-    name: 'GALS screen — timed practice',
+    name: 'GALS screen: timed practice',
     plannedMin: 30,
     elapsedSec: 11 * 60,
     tasks: [
@@ -282,21 +278,11 @@ export default function SeedDemoPage() {
 
       if (wipe) {
         log('Wiping existing goals + sessions…')
-        // ON DELETE CASCADE handles session_tasks + session_distraction_tags.
+        // ON DELETE CASCADE handles session_tasks.
         // Sessions with no goal (uncategorized) also need deletion.
         await supabase.from('sessions').delete().eq('user_id', user.id)
         await supabase.from('goals').delete().eq('user_id', user.id)
         await supabase.from('period_notes').delete().eq('user_id', user.id)
-      }
-
-      // Fetch tags so we can map names → ids for distraction linkage.
-      const { data: tags } = await supabase
-        .from('distraction_tags')
-        .select('id, name')
-        .eq('user_id', user.id)
-      const tagIdByName = new Map<string, string>()
-      for (const t of (tags ?? []) as { id: string; name: string }[]) {
-        tagIdByName.set(t.name, t.id)
       }
 
       // Create goals
@@ -318,7 +304,7 @@ export default function SeedDemoPage() {
         goalIdByName.set(g.name, goalRow.id)
       }
 
-      // Create sessions + tasks + distractions
+      // Create sessions + tasks
       let sessionCount = 0
       let taskCount = 0
       for (const g of DEMO) {
@@ -366,15 +352,6 @@ export default function SeedDemoPage() {
             taskCount += rows.length
           }
 
-          if (s.distractions && s.distractions.length > 0) {
-            const links = s.distractions
-              .map((n) => tagIdByName.get(n))
-              .filter((id): id is string => !!id)
-              .map((id) => ({ session_id: sessionRow.id, tag_id: id }))
-            if (links.length > 0) {
-              await supabase.from('session_distraction_tags').insert(links)
-            }
-          }
         }
       }
       log(`Created ${sessionCount} sessions, ${taskCount} tasks.`)
@@ -439,8 +416,8 @@ export default function SeedDemoPage() {
       </button>
       <h1 className="font-sans text-xl font-medium text-text-primary mb-2">Seed demo data</h1>
       <p className="font-sans text-sm text-text-muted mb-8 leading-relaxed">
-        Populates your account with a realistic set of goals, sessions, tasks
-        and distractions so the UI looks like a real user&apos;s history.
+        Populates your account with a realistic set of goals, sessions, and
+        tasks so the UI looks like a real user&apos;s history.
         Use for screenshots and demos.
       </p>
 

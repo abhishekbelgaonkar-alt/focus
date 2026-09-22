@@ -1,28 +1,42 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors */
-  --color-cream: #fdf6ee;
-  --color-text-primary: #3d3126;
-  --color-text-muted: #b08c6a;
-  --color-text-light: #c9b79c;
-  --color-border-warm: #ecdcc9;
-  --color-coral: #d9642e;
-  --color-coral-soft: #e8905a;   /* dimmer coral for slider thumbs */
-  --color-coral-light: #fbe6d4;
-  --color-tag-text: #a05a1f;
+  /*
+    Default: Ink & Paper. Warm natural linen background, deep indigo-ink
+    text, indigo accent (buttons/actions) — same colour family as the text
+    so the whole product speaks in one voice. No red-orange anywhere.
 
-  /* Task-completion green — money-green tone, distinct from coral accents */
-  --color-check-green: #22c55e;
-  /* Goal-name text — darker green readable on cream */
-  --color-goal-green: #16a34a;
+    The identity is "quiet, unhurried, warm." Orange buttons carry urgency;
+    indigo buttons carry calm. Indigo-on-linen also isn't the aesthetic of
+    any competitor in this space — no visual convergence with Claude,
+    StudiesTimer, or the generic productivity-app coral palette.
 
-  /* Heatmap scale */
-  --color-heatmap-none: #f0ece2;
-  --color-heatmap-low: #f3d9bd;
-  --color-heatmap-mid: #f0b587;
-  --color-heatmap-high: #e8905a;
-  --color-heatmap-peak: #d9642e;
+    Variable names stay legacy (--color-cream, --color-coral) so existing
+    Tailwind classes (`bg-cream`, `text-coral`, etc.) keep working — they
+    now resolve to new values. The names are internal.
+  */
+  --color-cream: #f2ede1;              /* warm linen paper (background) */
+  --color-text-primary: #1e2a3f;       /* deep ink-indigo */
+  --color-text-muted: #6b6560;         /* warm gray-brown */
+  --color-text-light: #a19b8f;         /* paler warm gray */
+  --color-border-warm: #e2ddd1;        /* pale warm gray */
+  --color-coral: #2e3d5a;              /* medium indigo — buttons, active states */
+  --color-coral-soft: #4a5c7d;         /* lighter indigo — thumbs, hover mid */
+  --color-coral-light: #e0e4ee;        /* very pale indigo — tag/pill backgrounds */
+  --color-tag-text: #1e2a3f;           /* deep ink — hover-darken + tag text on pale bg */
+
+  /* Task-completion green — grounded forest tone that pairs with ink-and-paper */
+  --color-check-green: #2f7a3f;
+  --color-goal-green: #3f6b4a;
+
+  /* Heatmap scale — linen → deep warm brown. Reads as hours accumulating
+     like coffee/ink stains on paper. Kept in the warm-neutral family (not
+     red-orange, not indigo) so it doesn't compete with the action colour. */
+  --color-heatmap-none: #e8e2d3;
+  --color-heatmap-low:  #d4c3a8;
+  --color-heatmap-mid:  #b89675;
+  --color-heatmap-high: #8a6547;
+  --color-heatmap-peak: #5c3a26;
 
   /* Fonts — CSS variables set by next/font in layout.tsx */
   --font-sans: var(--font-outfit), sans-serif;
@@ -99,24 +113,30 @@
   hydration to avoid FOUC.
 */
 [data-theme='dark'] {
-  --color-cream: #1a1512;
-  --color-text-primary: #f2e8dc;
-  --color-text-muted: #b09a80;
-  --color-text-light: #7a6a58;
-  --color-border-warm: #3a2f26;
-  --color-coral: #e88a5a;
-  --color-coral-soft: #d9642e;
-  --color-coral-light: #4a2a1c;
-  --color-tag-text: #f4c493;
+  /*
+    Dark mode inverts Paper into Ink: warm near-black background, warm
+    off-white "paper" text. The accent shifts to cool pale indigo —
+    reads like moonlight on ink, not fire. No orange, no red anywhere.
+  */
+  --color-cream: #1a1614;              /* deep warm ink background */
+  --color-text-primary: #e8ddc9;       /* warm paper-off-white */
+  --color-text-muted: #a8998a;         /* warm gray */
+  --color-text-light: #6a5f52;         /* dim warm gray */
+  --color-border-warm: #2e2a25;        /* subtle dark warm border */
+  --color-coral: #4a5c7d;              /* medium indigo — buttons legible with white text */
+  --color-coral-soft: #6a7e9e;         /* lighter indigo — thumbs, hover states */
+  --color-coral-light: #2a3244;        /* dark indigo — tag/pill backgrounds */
+  --color-tag-text: #8a9cbc;           /* mid-light indigo — tag text + hover-lighten */
 
-  --color-heatmap-none: #2a2420;
-  --color-heatmap-low:  #4a3020;
-  --color-heatmap-mid:  #6d3f26;
-  --color-heatmap-high: #a3532e;
-  --color-heatmap-peak: #e88a5a;
+  /* Heatmap: near-black → warm cream. Same coffee-on-paper feel, inverted. */
+  --color-heatmap-none: #241f1a;
+  --color-heatmap-low:  #3d3126;
+  --color-heatmap-mid:  #5c4632;
+  --color-heatmap-high: #8a6a4a;
+  --color-heatmap-peak: #c9a880;
 
-  --color-check-green: #22c55e;
-  --color-goal-green: #4ade80;   /* brighter for legibility on dark bg */
+  --color-check-green: #4ade80;
+  --color-goal-green: #7fbc8a;   /* brighter forest for legibility on dark bg */
 }
 
 [data-theme='cherry'] {

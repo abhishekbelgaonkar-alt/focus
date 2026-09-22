@@ -16,17 +16,22 @@ export function AccountNudge({ sessionCount, onDismiss }: AccountNudgeProps) {
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
 
   const handleCreate = async () => {
     setSaving(true)
     setError('')
+    // updateUser on an anon session promotes it in place — same user_id,
+    // same RLS scope, no data migration. Just stay put and confirm.
     const { error: err } = await supabase.auth.updateUser({ email, password })
     if (err) {
       setError(err.message)
       setSaving(false)
-    } else {
-      router.push('/setup')
+      return
     }
+    setSuccess(true)
+    setSaving(false)
+    setTimeout(onDismiss, 1600)
   }
 
   return (
@@ -48,21 +53,36 @@ export function AccountNudge({ sessionCount, onDismiss }: AccountNudgeProps) {
           Create an account so you don't lose this if you switch devices or clear your browser.
         </p>
 
-        {!showForm ? (
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex-1 bg-coral text-white font-sans font-medium py-2.5 rounded-pill text-sm"
-            >
-              Create account
-            </button>
-            <button
-              onClick={onDismiss}
-              className="font-sans text-sm text-text-muted"
-            >
-              Not now
-            </button>
-          </div>
+        {success ? (
+          <p className="font-sans text-sm text-coral font-medium">
+            Saved. Your data is now attached to {email}.
+          </p>
+        ) : !showForm ? (
+          <>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex-1 bg-coral text-white font-sans font-medium py-2.5 rounded-pill text-sm"
+              >
+                Create account
+              </button>
+              <button
+                onClick={onDismiss}
+                className="font-sans text-sm text-text-muted"
+              >
+                Not now
+              </button>
+            </div>
+            <p className="font-sans text-xs text-text-muted mt-3 text-center">
+              Already have one?{' '}
+              <button
+                onClick={() => router.push('/signin')}
+                className="text-coral underline"
+              >
+                Sign in
+              </button>
+            </p>
+          </>
         ) : (
           <div className="flex flex-col gap-3">
             <input
@@ -70,6 +90,7 @@ export function AccountNudge({ sessionCount, onDismiss }: AccountNudgeProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
+              autoComplete="email"
               className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
             />
             <input
@@ -77,6 +98,7 @@ export function AccountNudge({ sessionCount, onDismiss }: AccountNudgeProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
+              autoComplete="new-password"
               className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral"
             />
             {error && <p className="text-xs text-red-500 font-sans">{error}</p>}

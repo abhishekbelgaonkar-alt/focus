@@ -9,16 +9,19 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { getDayViewPoints, getWeekViewPoints, getMonthViewPoints } from '@/lib/stats'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatDuration } from '@/lib/format'
+import { useThemeColors } from '@/lib/theme-colors'
 import type { ChartPoint } from '@/lib/stats'
 
 type Mode = 'day' | 'week' | 'month'
+type Metric = 'time' | 'rating'
 
 interface RatingLineChartProps {
   sessions: Array<{
     id: string
     started_at: string
     rating: number | null
+    actual_duration_minutes: number
     goals: { name: string } | null
     session_name: string | null
   }>
@@ -27,14 +30,20 @@ interface RatingLineChartProps {
 
 export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineChartProps) {
   const [mode, setMode] = useState<Mode>('day')
+  const [metric, setMetric] = useState<Metric>('time')
   const [selected, setSelected] = useState<ChartPoint | null>(null)
+  const theme = useThemeColors()
 
-  const data =
+  const rawData =
     mode === 'day'
       ? getDayViewPoints(sessions)
       : mode === 'week'
       ? getWeekViewPoints(sessions)
       : getMonthViewPoints(sessions)
+
+  // Rating mode still needs to skip points without a rating so the line doesn't dip to 0.
+  const data =
+    metric === 'rating' ? rawData.filter((p) => p.hasRating) : rawData
 
   const formatXTick = (v: string) => {
     const d = new Date(v)
@@ -49,28 +58,54 @@ export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineCha
     if (active) setSelected(active)
   }
 
+  // Y-axis config swaps by metric. Time uses a nice-rounded upper bound so the
+  // line doesn't kiss the top of the chart.
+  const maxMinutes = Math.max(1, ...data.map((p) => p.minutes))
+  const yMax = Math.ceil((maxMinutes * 1.1) / 15) * 15   // round up to nearest 15m
+  const yConfig =
+    metric === 'time'
+      ? { domain: [0, yMax], ticks: undefined as unknown as number[] | undefined, formatter: (v: number) => `${v}m` }
+      : { domain: [1, 5], ticks: [1, 2, 3, 4, 5], formatter: (v: number) => String(v) }
+
   return (
     <div>
-      {/* Mode toggle */}
-      <div className="flex gap-2 mb-4">
-        {(['day', 'week', 'month'] as Mode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => { setMode(m); setSelected(null) }}
-            className={`font-sans text-xs px-3 py-1 rounded-pill capitalize ${
-              mode === m
-                ? 'bg-coral text-white'
-                : 'border-[1.5px] border-border-warm text-text-muted'
-            }`}
-          >
-            {m}
-          </button>
-        ))}
+      {/* Metric + mode toggles on one line */}
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <div className="flex gap-2">
+          {(['time', 'rating'] as Metric[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMetric(m); setSelected(null) }}
+              className={`font-sans text-xs px-3 py-1 rounded-pill capitalize ${
+                metric === m
+                  ? 'bg-text-primary text-cream'
+                  : 'border-[1.5px] border-border-warm text-text-muted'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {(['day', 'week', 'month'] as Mode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setSelected(null) }}
+              className={`font-sans text-xs px-3 py-1 rounded-pill capitalize ${
+                mode === m
+                  ? 'bg-coral text-white'
+                  : 'border-[1.5px] border-border-warm text-text-muted'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
 
       {data.length === 0 ? (
         <p className="font-sans text-sm text-text-muted py-8 text-center">
-          No rated sessions yet.
+          {metric === 'time' ? 'No sessions yet.' : 'No rated sessions yet.'}
         </p>
       ) : (
         <ResponsiveContainer width="100%" height={200}>
@@ -80,29 +115,30 @@ export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineCha
             onClick={handleChartClick}
             style={{ cursor: mode === 'day' ? 'pointer' : 'default' }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#ecdcc9" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={theme.borderWarm} vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={formatXTick}
-              tick={{ fontFamily: 'var(--font-outfit)', fontSize: 10, fill: '#b08c6a' }}
+              tick={{ fontFamily: 'var(--font-outfit)', fontSize: 10, fill: theme.textMuted }}
               tickLine={false}
-              axisLine={{ stroke: '#ecdcc9' }}
+              axisLine={{ stroke: theme.borderWarm }}
               interval="preserveStartEnd"
             />
             <YAxis
-              domain={[1, 5]}
-              ticks={[1, 2, 3, 4, 5]}
-              tick={{ fontFamily: 'var(--font-quicksand)', fontSize: 10, fill: '#b08c6a' }}
+              domain={yConfig.domain}
+              ticks={yConfig.ticks}
+              tickFormatter={yConfig.formatter}
+              tick={{ fontFamily: 'var(--font-quicksand)', fontSize: 10, fill: theme.textMuted }}
               tickLine={false}
               axisLine={false}
             />
             <Line
               type="monotone"
-              dataKey="rating"
-              stroke="#d9642e"
+              dataKey={metric === 'time' ? 'minutes' : 'rating'}
+              stroke={theme.coral}
               strokeWidth={1.5}
-              dot={{ r: 3, fill: '#fbe6d4', stroke: '#d9642e', strokeWidth: 1.5 }}
-              activeDot={{ r: 5, fill: '#d9642e', stroke: '#d9642e' }}
+              dot={{ r: 3, fill: theme.coralLight, stroke: theme.coral, strokeWidth: 1.5 }}
+              activeDot={{ r: 5, fill: theme.coral, stroke: theme.coral }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -117,7 +153,11 @@ export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineCha
           </p>
           <div className="flex items-center gap-3 mt-1">
             <span className="font-numbers text-xl font-semibold text-coral">
-              {selected.rating.toFixed(1)}/5
+              {metric === 'time'
+                ? formatDuration(selected.minutes)
+                : selected.hasRating
+                ? `${selected.rating.toFixed(1)}/5`
+                : 'unrated'}
             </span>
             {selected.sessionId && onNavigateToSession && (
               <button

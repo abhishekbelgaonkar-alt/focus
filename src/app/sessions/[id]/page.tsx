@@ -6,10 +6,6 @@ import { getRatingLabel } from '@/lib/timer'
 import { formatDuration, formatDateTime } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
 
-interface TagRow {
-  distraction_tags: { id: string; name: string }
-}
-
 interface TaskRow {
   id: string
   name: string
@@ -28,7 +24,6 @@ interface SessionDetail {
   notes: string | null
   goals: { id: string; name: string; color: string | null } | null
   categories: { name: string } | null
-  session_distraction_tags: TagRow[]
   session_tasks: TaskRow[]
 }
 
@@ -51,7 +46,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         notes,
         goals(id, name, color),
         categories(name),
-        session_distraction_tags(distraction_tags(id, name)),
         session_tasks(id, name, position, completed_at, duration_seconds, rating)
       `)
       .eq('id', sessionId)
@@ -70,7 +64,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const contextColor = session.goals
     ? getGoalColor({ id: session.goals.id, color: session.goals.color })
     : null
-  const tags = session.session_distraction_tags.map((t) => t.distraction_tags)
 
   return (
     <main className="min-h-screen bg-cream px-6 pt-12 pb-10 max-w-md mx-auto">
@@ -108,24 +101,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           <p className="font-sans text-sm text-text-muted mt-1">
             {getRatingLabel(session.rating)}
           </p>
-        </div>
-      )}
-
-      {tags.length > 0 && (
-        <div className="mb-8">
-          <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-3">
-            Distractions
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {tags.map((t) => (
-              <span
-                key={t.id}
-                className="px-3 py-1.5 rounded-pill text-sm font-sans bg-coral-light border-[1.5px] border-coral text-tag-text"
-              >
-                {t.name}
-              </span>
-            ))}
-          </div>
         </div>
       )}
 
@@ -190,7 +165,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     )}
                     {isDone ? (
                       <span className="font-numbers text-xs text-text-muted shrink-0">
-                        {fmtDur(t.duration_seconds) ?? '—'}
+                        {fmtDur(t.duration_seconds) ?? '-'}
                       </span>
                     ) : (
                       <span className="font-sans text-xs text-text-light shrink-0">unfinished</span>

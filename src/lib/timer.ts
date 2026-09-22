@@ -24,22 +24,25 @@ export function isTimerExpired(
   return Date.now() - startedAt - totalPausedMs >= plannedMs
 }
 
+// Mood-language anchors for the session slider. These describe how the
+// session felt rather than grading it — the identity rejects quality-based
+// framing, so "scattered" is a state, not a verdict.
 export function getRatingLabel(rating: number): string {
   const labels: Record<number, string> = {
-    0: 'None',
-    1: 'Rough',
-    2: 'Distracted',
-    3: 'Okay',
-    4: 'Focused',
-    5: 'Locked in',
+    0: '',
+    1: 'scattered',
+    2: 'choppy',
+    3: 'steady',
+    4: 'focused',
+    5: 'flowing',
   }
   return labels[Math.floor(rating)] ?? ''
 }
 
-export function getNotePlaceholder(rating: number): string {
-  if (rating <= 1.5) return 'What made it hard to focus at all'
-  if (rating <= 2.5) return 'What kept pulling your attention away'
-  if (rating <= 3.5) return 'What would have made this session better'
-  if (rating <= 4.5) return 'What made this focused'
-  return 'What made this session click'
+// A single universal placeholder for the notes textarea. Softly names
+// distractions as one thing the user might write about, without demanding
+// it. Also invites wins and stray thoughts — anything future-you might
+// want to search for.
+export function getNotePlaceholder(): string {
+  return 'wins, hiccups, thoughts, anything future-you might wanna find'
 }

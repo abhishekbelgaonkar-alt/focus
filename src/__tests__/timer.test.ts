@@ -77,32 +77,24 @@ describe('isTimerExpired', () => {
 
 describe('getRatingLabel', () => {
   it.each([
-    [1.0, 'Rough'],
-    [1.5, 'Rough'],
-    [2.0, 'Distracted'],
-    [2.5, 'Distracted'],
-    [3.0, 'Okay'],
-    [3.5, 'Okay'],
-    [4.0, 'Focused'],
-    [4.5, 'Focused'],
-    [5.0, 'Locked in'],
+    [1.0, 'scattered'],
+    [1.5, 'scattered'],
+    [2.0, 'choppy'],
+    [2.5, 'choppy'],
+    [3.0, 'steady'],
+    [3.5, 'steady'],
+    [4.0, 'focused'],
+    [4.5, 'focused'],
+    [5.0, 'flowing'],
   ])('rating %f → "%s"', (rating, expected) => {
     expect(getRatingLabel(rating)).toBe(expected)
   })
 })
 
 describe('getNotePlaceholder', () => {
-  it.each([
-    [1.0, 'What made it hard to focus at all'],
-    [1.5, 'What made it hard to focus at all'],
-    [2.0, 'What kept pulling your attention away'],
-    [2.5, 'What kept pulling your attention away'],
-    [3.0, 'What would have made this session better'],
-    [3.5, 'What would have made this session better'],
-    [4.0, 'What made this focused'],
-    [4.5, 'What made this focused'],
-    [5.0, 'What made this session click'],
-  ])('rating %f → correct placeholder', (rating, expected) => {
-    expect(getNotePlaceholder(rating)).toBe(expected)
+  it('returns a single universal placeholder', () => {
+    expect(getNotePlaceholder()).toBe(
+      'wins, hiccups, thoughts, anything future-you might wanna find'
+    )
   })
 })

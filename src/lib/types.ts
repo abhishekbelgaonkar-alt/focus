@@ -37,13 +37,6 @@ export interface Session {
   created_at: string
 }
 
-export interface DistractionTag {
-  id: string
-  user_id: string
-  name: string
-  created_at: string
-}
-
 export interface SessionTask {
   id: string
   session_id: string
@@ -65,6 +58,81 @@ export interface SessionTemplate {
   schedule: Weekday[] | null
   created_at: string
   last_used_at: string | null
+}
+
+export interface UserProfile {
+  user_id: string
+  handle: string
+  created_at: string
+}
+
+export interface FriendInvite {
+  user_id: string
+  short_code: string
+  created_at: string
+}
+
+export interface FriendRequest {
+  id: string
+  from_user_id: string
+  to_user_id: string
+  created_at: string
+  from_profile?: UserProfile   // joined for inbound-request display
+}
+
+export interface Friendship {
+  user_a_id: string
+  user_b_id: string
+  created_at: string
+}
+
+// Convenience shape for the Friends dropdown: a friend as seen from the
+// current user's perspective, with their profile info and current activity
+// flag pre-joined.
+export interface FriendView {
+  user_id: string
+  handle: string
+  is_focusing: boolean
+}
+
+export interface Room {
+  id: string
+  short_code: string
+  host_user_id: string
+  planned_duration_minutes: number
+  session_name: string | null
+  goal_id: string | null
+  goal_label: string | null
+  tasks: Array<{ name: string }>
+  propagate_setup: boolean
+  started_at: string
+  ended_at: string | null
+  created_at: string
+}
+
+export interface RoomParticipant {
+  room_id: string
+  user_id: string
+  joined_at: string
+  left_at: string | null
+  session_id: string | null
+}
+
+// Enriched participant for the room UI: joins handle from user_profiles.
+export interface RoomParticipantView {
+  user_id: string
+  handle: string
+  joined_at: string
+  left_at: string | null
+  is_you: boolean
+}
+
+export interface GoalShareInvite {
+  id: string
+  short_code: string
+  goal_id: string
+  created_by: string
+  created_at: string
 }
 
 export interface PeriodNote {

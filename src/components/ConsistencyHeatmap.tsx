@@ -1,15 +1,16 @@
 'use client'
 import { useState } from 'react'
-import { getRatingTierColor, getMonthGridDays } from '@/lib/stats'
+import { getRatingTierColor, getMinutesTierColor, getMonthGridDays } from '@/lib/stats'
 import { PeriodNoteBox } from '@/components/PeriodNoteBox'
 import type { HeatmapEntry } from '@/lib/stats'
 import type { PeriodType } from '@/lib/types'
 
 type HeatmapMode = 'day' | 'week' | 'month'
+type Metric = 'time' | 'rating'
 
 interface ConsistencyHeatmapProps {
   dayMap: Map<string, HeatmapEntry>
-  sessions: Array<{ started_at: string; rating: number | null }>
+  sessions: Array<{ started_at: string; rating: number | null; actual_duration_minutes: number }>
 }
 
 interface SelectedPeriod {
@@ -37,9 +38,14 @@ function avgOrNull(ratings: number[]): number | null {
 export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps) {
   const now = new Date()
   const [mode, setMode] = useState<HeatmapMode>('day')
+  const [metric, setMetric] = useState<Metric>('time')
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [selected, setSelected] = useState<SelectedPeriod | null>(null)
+
+  // Colour a cell by the active metric — time (minutes tier) or rating tier.
+  const cellColor = (minutes: number, avgRating: number | null): string =>
+    metric === 'time' ? getMinutesTierColor(minutes) : getRatingTierColor(avgRating)
 
   const toggle = (period: SelectedPeriod) =>
     setSelected((prev) => (prev?.date === period.date ? null : period))
@@ -79,7 +85,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
                 key={d}
                 style={{
                   fontSize: 9,
-                  color: '#c9b79c',
+                  color: 'var(--color-text-light)',
                   height: CELL,
                   lineHeight: `${CELL}px`,
                   width: 22,
@@ -116,10 +122,10 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
                   style={{
                     width: CELL,
                     height: CELL,
-                    backgroundColor: getRatingTierColor(entry?.avgRating ?? null),
+                    backgroundColor: cellColor(entry?.minutes ?? 0, entry?.avgRating ?? null),
                     borderRadius: 3,
                     cursor: 'pointer',
-                    outline: isSelected ? '2px solid #d9642e' : 'none',
+                    outline: isSelected ? '2px solid var(--color-coral)' : 'none',
                     outlineOffset: 1,
                     display: 'flex',
                     alignItems: 'center',
@@ -135,13 +141,20 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
           </div>
         </div>
 
-        {/* Legend */}
+        {/* Legend — copy swaps with metric */}
         <div className="flex items-center gap-1.5 mt-3">
-          <span style={{ fontSize: 9 }} className="text-text-light font-sans">Rough</span>
-          {(['#f3d9bd', '#f0b587', '#e8905a', '#d9642e'] as const).map((c) => (
-            <div key={c} style={{ width: CELL, height: CELL, backgroundColor: c, borderRadius: 3 }} />
+          <span style={{ fontSize: 9 }} className="text-text-light font-sans">
+            {metric === 'time' ? 'A little' : 'Rough'}
+          </span>
+          {(['--color-heatmap-low', '--color-heatmap-mid', '--color-heatmap-high', '--color-heatmap-peak'] as const).map((token) => (
+            <div
+              key={token}
+              style={{ width: CELL, height: CELL, backgroundColor: `var(${token})`, borderRadius: 3 }}
+            />
           ))}
-          <span style={{ fontSize: 9 }} className="text-text-light font-sans">Locked in</span>
+          <span style={{ fontSize: 9 }} className="text-text-light font-sans">
+            {metric === 'time' ? 'Deep session' : 'Locked in'}
+          </span>
         </div>
       </div>
     )
@@ -150,11 +163,13 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
   // ── Week view ────────────────────────────────────────────────────────────────
 
   const renderWeekView = () => {
-    const weekMap = new Map<string, number[]>()
-    sessions.filter((s) => s.rating !== null).forEach((s) => {
+    const weekMap = new Map<string, { ratings: number[]; minutes: number }>()
+    sessions.forEach((s) => {
       const k = isoWeekMonday(new Date(s.started_at))
-      if (!weekMap.has(k)) weekMap.set(k, [])
-      weekMap.get(k)!.push(s.rating!)
+      if (!weekMap.has(k)) weekMap.set(k, { ratings: [], minutes: 0 })
+      const bucket = weekMap.get(k)!
+      if (s.rating !== null) bucket.ratings.push(s.rating)
+      bucket.minutes += s.actual_duration_minutes
     })
 
     const weeks: string[] = []
@@ -169,7 +184,11 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
       <div className="flex flex-col items-center">
         <div className="flex flex-wrap gap-1.5 justify-center max-w-xs">
           {unique.map((week) => {
-            const avg = avgOrNull(weekMap.get(week) ?? [])
+            const bucket = weekMap.get(week)
+            const avg = avgOrNull(bucket?.ratings ?? [])
+            // For week/month, scale minutes-per-cell up (a full week of "deep"
+            // work looks nothing like a single deep session) — 7× the day scale.
+            const minutes = (bucket?.minutes ?? 0) / 7
             const isSelected = selected?.date === week
             const title = `Week of ${new Date(week + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
             return (
@@ -179,10 +198,10 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
                 style={{
                   width: CELL * 1.5,
                   height: CELL * 1.5,
-                  backgroundColor: getRatingTierColor(avg),
+                  backgroundColor: cellColor(minutes, avg),
                   borderRadius: 3,
                   cursor: 'pointer',
-                  outline: isSelected ? '2px solid #d9642e' : 'none',
+                  outline: isSelected ? '2px solid var(--color-coral)' : 'none',
                   outlineOffset: 1,
                 }}
               />
@@ -196,11 +215,13 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
   // ── Month view ───────────────────────────────────────────────────────────────
 
   const renderMonthView = () => {
-    const monthMap = new Map<string, number[]>()
-    sessions.filter((s) => s.rating !== null).forEach((s) => {
+    const monthMap = new Map<string, { ratings: number[]; minutes: number }>()
+    sessions.forEach((s) => {
       const k = s.started_at.slice(0, 7)
-      if (!monthMap.has(k)) monthMap.set(k, [])
-      monthMap.get(k)!.push(s.rating!)
+      if (!monthMap.has(k)) monthMap.set(k, { ratings: [], minutes: 0 })
+      const bucket = monthMap.get(k)!
+      if (s.rating !== null) bucket.ratings.push(s.rating)
+      bucket.minutes += s.actual_duration_minutes
     })
 
     const months: string[] = []
@@ -214,7 +235,11 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
       <div className="flex flex-col items-center">
         <div className="flex flex-wrap gap-2 justify-center">
           {months.map((mk) => {
-            const avg = avgOrNull(monthMap.get(mk) ?? [])
+            const bucket = monthMap.get(mk)
+            const avg = avgOrNull(bucket?.ratings ?? [])
+            // Same rationale as the week view — average daily minutes across
+            // the ~30 days so a month of steady 30-min days looks warm.
+            const minutes = (bucket?.minutes ?? 0) / 30
             const [y, m] = mk.split('-').map(Number)
             const periodDate = `${mk}-01`
             const isSelected = selected?.date === periodDate
@@ -226,10 +251,10 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
                   style={{
                     width: CELL * 2,
                     height: CELL * 2,
-                    backgroundColor: getRatingTierColor(avg),
+                    backgroundColor: cellColor(minutes, avg),
                     borderRadius: 4,
                     cursor: 'pointer',
-                    outline: isSelected ? '2px solid #d9642e' : 'none',
+                    outline: isSelected ? '2px solid var(--color-coral)' : 'none',
                     outlineOffset: 1,
                   }}
                 />
@@ -246,21 +271,38 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
 
   return (
     <div>
-      {/* Toggle — independent from line chart */}
-      <div className="flex gap-2 mb-4">
-        {(['day', 'week', 'month'] as HeatmapMode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => { setMode(m); setSelected(null) }}
-            className={`font-sans text-xs px-3 py-1 rounded-pill capitalize ${
-              mode === m
-                ? 'bg-coral text-white'
-                : 'border-[1.5px] border-border-warm text-text-muted'
-            }`}
-          >
-            {m}
-          </button>
-        ))}
+      {/* Metric + granularity toggles — independent from the line chart. */}
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <div className="flex gap-2">
+          {(['time', 'rating'] as Metric[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMetric(m); setSelected(null) }}
+              className={`font-sans text-xs px-3 py-1 rounded-pill capitalize ${
+                metric === m
+                  ? 'bg-text-primary text-cream'
+                  : 'border-[1.5px] border-border-warm text-text-muted'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {(['day', 'week', 'month'] as HeatmapMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setSelected(null) }}
+              className={`font-sans text-xs px-3 py-1 rounded-pill capitalize ${
+                mode === m
+                  ? 'bg-coral text-white'
+                  : 'border-[1.5px] border-border-warm text-text-muted'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
 
       {mode === 'day' && renderDayView()}

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { loadSession, saveSession, clearSession } from '@/lib/session-state'
 import { getRemainingMs, formatTime, isTimerExpired } from '@/lib/timer'
 import { createClient } from '@/lib/supabase/client'
+import { formatDuration } from '@/lib/format'
 import type { InProgressSession } from '@/lib/session-state'
 
 interface TimerState {
@@ -35,6 +36,9 @@ export default function TimerPage() {
   const [timer, setTimer] = useState<TimerState | null>(null)
   const [displayMs, setDisplayMs] = useState(0)
   const [savingLater, setSavingLater] = useState(false)
+  // Total minutes already saved to Supabase from today's completed sessions.
+  // Combines with mid-session elapsed to show a running "time banked today."
+  const [todayBankedMinutes, setTodayBankedMinutes] = useState(0)
   const rafRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -56,6 +60,23 @@ export default function TimerPage() {
     }
     setTimer(t)
     setDisplayMs(getRemainingMs(t.startedAt, t.plannedMs, t.pausedAt, t.totalPausedMs))
+
+    // Load today's already-banked minutes so the ticker shows a running total.
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData?.user) return
+      const dayStart = new Date()
+      dayStart.setHours(0, 0, 0, 0)
+      const { data: rows } = await supabase
+        .from('sessions')
+        .select('actual_duration_minutes')
+        .eq('user_id', userData.user.id)
+        .eq('status', 'completed')
+        .gte('started_at', dayStart.toISOString())
+      const sum = ((rows ?? []) as { actual_duration_minutes: number | null }[])
+        .reduce((s, x) => s + (x.actual_duration_minutes ?? 0), 0)
+      setTodayBankedMinutes(sum)
+    })()
   }, [])
 
   const tick = useCallback(() => {
@@ -368,6 +389,20 @@ export default function TimerPage() {
           {savingLater ? 'Saving…' : 'Save & continue later'}
         </button>
       </div>
+
+      {/* Time banked today — accumulates mid-session so the reward feels real. */}
+      {(() => {
+        const elapsedMs = Math.max(0, timer.plannedMs - displayMs)
+        const liveMinutes = todayBankedMinutes + Math.floor(elapsedMs / 60_000)
+        return (
+          <p className="font-sans text-xs text-text-light mt-6">
+            <span className="font-numbers font-medium text-text-muted">
+              {formatDuration(liveMinutes)}
+            </span>{' '}
+            banked today
+          </p>
+        )
+      })()}
 
       {/* Task list — check off as you complete each; duration recorded per task */}
       {session.tasks.length > 0 && (() => {

@@ -22,6 +22,8 @@ interface GoalData {
   color: string | null
   status: 'active' | 'completed' | 'abandoned'
   created_at: string
+  link_group_id: string | null
+  user_id: string
 }
 
 export default function GoalDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,10 +34,17 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
   const [goal, setGoal] = useState<GoalData | null>(null)
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [linkedWith, setLinkedWith] = useState<string[]>([])
+  const [shareLink, setShareLink] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
 
   const load = async () => {
     const [{ data: g }, { data: s }] = await Promise.all([
-      supabase.from('goals').select('id, name, color, status, created_at').eq('id', goalId).single(),
+      supabase
+        .from('goals')
+        .select('id, name, color, status, created_at, link_group_id, user_id')
+        .eq('id', goalId)
+        .single(),
       supabase
         .from('sessions')
         .select('id, session_name, started_at, actual_duration_minutes, rating, session_tasks(id, completed_at)')
@@ -45,6 +54,41 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
     ])
     if (g) setGoal(g as GoalData)
     setSessions((s ?? []) as unknown as SessionItem[])
+
+    // If this goal is part of a link_group, fetch the other collaborators'
+    // handles. RLS on the friends system allows reading any user_profile,
+    // so this shows a warm attribution without requiring extra permissions.
+    const goalRow = g as GoalData | null
+    if (goalRow?.link_group_id) {
+      const { data: linked } = await supabase
+        .from('goals')
+        .select('user_id')
+        .eq('link_group_id', goalRow.link_group_id)
+        .neq('user_id', goalRow.user_id)
+      const otherIds = ((linked ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
+      if (otherIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('handle')
+          .in('user_id', otherIds)
+        setLinkedWith(((profiles ?? []) as Array<{ handle: string }>).map((p) => p.handle))
+      }
+    }
+  }
+
+  const shareGoal = async () => {
+    const { data } = await supabase.rpc('generate_goal_share_code', { p_goal_id: goalId })
+    const code = typeof data === 'string' ? data : null
+    if (code) {
+      setShareLink(`${window.location.origin}/goal-invite/${code}`)
+      setShareCopied(false)
+    }
+  }
+
+  const copyShare = async () => {
+    if (!shareLink) return
+    await navigator.clipboard.writeText(shareLink)
+    setShareCopied(true)
   }
 
   useEffect(() => {
@@ -100,50 +144,82 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
           {goal.name}
         </h1>
       </div>
-      <p className="font-sans text-xs text-text-muted mb-8">
+      <p className="font-sans text-xs text-text-muted mb-2">
         Created {timeAgo(goal.created_at)}
         {lastAt ? ` · last session ${timeAgo(lastAt)}` : ''}
       </p>
+      {linkedWith.length > 0 && (
+        <p className="font-sans text-xs text-text-muted mb-2">
+          Linked with{' '}
+          <span className="text-text-primary">{linkedWith.join(', ')}</span>
+        </p>
+      )}
+      <div className="mb-8">
+        {shareLink ? (
+          <div className="mt-2 p-3 border border-border-warm rounded-xl">
+            <p className="font-sans text-xs text-text-muted mb-2">
+              Anyone with this link can link this goal to their account.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={shareLink}
+                className="flex-1 bg-transparent border-b border-border-warm pb-1 font-sans text-xs text-text-primary focus:outline-none"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <button onClick={copyShare} className="font-sans text-xs text-coral shrink-0">
+                {shareCopied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={shareGoal}
+            className="font-sans text-xs text-coral"
+          >
+            Share this goal
+          </button>
+        )}
+      </div>
 
-      {/* Primary stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* Hero stat — total time. This is the thing that actually moves. */}
+      <div className="mb-6">
+        <p className="font-numbers text-4xl font-semibold text-text-primary leading-none">
+          {formatDuration(totalMinutes)}
+        </p>
+        <p className="font-sans text-xs text-text-muted mt-1">total time</p>
+      </div>
+
+      {/* Supporting stats — sessions, streak, rating, tasks. */}
+      <div className="grid grid-cols-4 gap-4 mb-10">
         <div>
-          <p className="font-numbers text-2xl font-semibold text-text-primary">
-            {formatDuration(totalMinutes)}
-          </p>
-          <p className="font-sans text-xs text-text-muted mt-0.5">total time</p>
-        </div>
-        <div>
-          <p className="font-numbers text-2xl font-semibold text-text-primary">
+          <p className="font-numbers text-lg font-semibold text-text-primary">
             {sessions.length}
           </p>
           <p className="font-sans text-xs text-text-muted mt-0.5">sessions</p>
         </div>
         <div>
-          <p className="font-numbers text-2xl font-semibold text-text-primary">
-            {avgRating !== null ? `${avgRating.toFixed(1)}/5` : '—'}
-          </p>
-          <p className="font-sans text-xs text-text-muted mt-0.5">avg rating</p>
-        </div>
-      </div>
-
-      {/* Secondary stats */}
-      <div className="grid grid-cols-3 gap-4 mb-10">
-        <div>
-          <p className="font-numbers text-xl font-semibold text-text-primary">{uniqueDays}</p>
-          <p className="font-sans text-xs text-text-muted mt-0.5">days worked</p>
-        </div>
-        <div>
-          <p className="font-numbers text-xl font-semibold text-text-primary">{streak}</p>
+          <p className="font-numbers text-lg font-semibold text-text-primary">{streak}</p>
           <p className="font-sans text-xs text-text-muted mt-0.5">day streak</p>
         </div>
         <div>
-          <p className="font-numbers text-xl font-semibold text-text-primary">
-            {taskTotal === 0 ? '—' : `${taskDone}/${taskTotal}`}
+          <p className="font-numbers text-lg font-semibold text-text-primary">
+            {avgRating !== null ? avgRating.toFixed(1) : '-'}
+          </p>
+          <p className="font-sans text-xs text-text-muted mt-0.5">avg rating</p>
+        </div>
+        <div>
+          <p className="font-numbers text-lg font-semibold text-text-primary">
+            {taskTotal === 0 ? '-' : `${taskDone}/${taskTotal}`}
           </p>
           <p className="font-sans text-xs text-text-muted mt-0.5">tasks done</p>
         </div>
       </div>
+
+      {/* Days-worked meta */}
+      <p className="font-sans text-xs text-text-muted mb-8 -mt-6">
+        Across {uniqueDays} {uniqueDays === 1 ? 'day' : 'days'}.
+      </p>
 
       {/* Status actions */}
       <div className="flex flex-wrap gap-3 mb-8">

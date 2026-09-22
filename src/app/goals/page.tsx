@@ -140,7 +140,7 @@ export default function AllGoalsPage() {
               if (e.key === 'Enter') handleCreate()
               if (e.key === 'Escape') setCreating(false)
             }}
-            placeholder="Name your new goal — e.g. Ship v1"
+            placeholder="Name your new goal, e.g. Ship v1"
             className="w-full bg-transparent border-b border-coral pb-1 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none"
           />
           <div className="flex gap-3 mt-3">

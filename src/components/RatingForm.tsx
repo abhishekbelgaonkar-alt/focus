@@ -1,10 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { RatingSlider } from '@/components/RatingSlider'
-import { DistractionTags } from '@/components/DistractionTags'
 import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import { getNotePlaceholder } from '@/lib/timer'
-import type { DistractionTag } from '@/lib/types'
 
 const SESSION_NAME_PLACEHOLDERS = [
   'e.g. Fix login bug',
@@ -31,7 +29,6 @@ export interface RatingFormData {
   rating: number
   notes: string
   sessionName: string
-  selectedTagIds: string[]
   goalText: string          // used when creating a new goal
   existingGoalId: string | null
   existingCategoryId: string | null
@@ -41,10 +38,7 @@ interface RatingFormProps {
   initialRating?: number
   initialNotes?: string
   initialSessionName?: string
-  initialSelectedTagIds?: string[]
   focusText?: string | null
-  tags: DistractionTag[]
-  onAddTag: (name: string) => Promise<void>
   onSave: (data: RatingFormData) => Promise<void>
   saving: boolean
   showGoalPrompt?: boolean
@@ -61,10 +55,7 @@ export function RatingForm({
   initialRating = 3.0,
   initialNotes = '',
   initialSessionName = '',
-  initialSelectedTagIds = [],
   focusText,
-  tags,
-  onAddTag,
   onSave,
   saving,
   showGoalPrompt = false,
@@ -77,18 +68,11 @@ export function RatingForm({
   const [rating, setRating] = useState(initialRating)
   const [notes, setNotes] = useState(initialNotes)
   const [sessionName, setSessionName] = useState(initialSessionName)
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialSelectedTagIds)
 
   // Goal-assignment state (only relevant when showGoalPrompt=true)
   const [goalMode, setGoalMode] = useState<GoalMode>('skip')
   const [selectedOptionKey, setSelectedOptionKey] = useState<string>('')  // "goal:<id>" or "category:<id>"
   const [goalText, setGoalText] = useState('')
-
-  const handleToggleTag = (tagId: string) => {
-    setSelectedTagIds((prev) =>
-      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
-    )
-  }
 
   const handleSave = () => {
     let existingGoalId: string | null = null
@@ -107,7 +91,6 @@ export function RatingForm({
       rating,
       notes,
       sessionName,
-      selectedTagIds,
       goalText: finalGoalText,
       existingGoalId,
       existingCategoryId,
@@ -128,23 +111,14 @@ export function RatingForm({
         </div>
       )}
 
-      <div className="mb-10">
-        <DistractionTags
-          tags={tags}
-          selected={selectedTagIds}
-          onToggle={handleToggleTag}
-          onAdd={onAddTag}
-        />
-      </div>
-
       <div className="mb-8">
         <p className="font-sans text-sm text-text-muted mb-2">
-          Notes — write whatever you want
+          Notes: write whatever you want, search them anytime
         </p>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder={getNotePlaceholder(rating)}
+          placeholder={getNotePlaceholder()}
           rows={4}
           className="w-full bg-transparent border border-border-warm rounded-xl px-3 py-2 font-sans text-sm text-text-primary placeholder:text-text-light focus:outline-none focus:border-coral resize-none"
         />
@@ -179,7 +153,7 @@ export function RatingForm({
             <span className="text-text-light font-normal">(optional)</span>
           </label>
           <p className="font-sans text-xs text-text-muted mb-4 leading-relaxed">
-            A goal is a project or theme you&apos;ll come back to — e.g.{' '}
+            A goal is a project or theme you&apos;ll come back to, e.g.{' '}
             <em>&ldquo;Finals prep&rdquo;</em> or <em>&ldquo;Learn guitar&rdquo;</em>.
             Sessions grouped by goal roll up in <strong>All goals</strong> with running totals.
           </p>

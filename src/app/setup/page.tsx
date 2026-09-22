@@ -55,6 +55,7 @@ function SetupPageInner() {
       isExpired: false,
       tasks: [],
       existingSessionId: null,
+      roomId: null,
     })
     router.push('/timer')
   }
@@ -66,7 +67,7 @@ function SetupPageInner() {
           What are you focusing on?
         </label>
         <p className="text-sm text-text-muted mb-4">
-          Optional — you can skip this and add it after
+          Optional. You can skip this and add it after.
         </p>
         <div className="relative">
           <input

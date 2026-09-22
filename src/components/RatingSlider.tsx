@@ -7,7 +7,6 @@ interface RatingSliderProps {
 }
 
 const RATING_TICKS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
-const WHOLE_LABELS = [1, 2, 3, 4, 5]
 const MIN = 1
 const MAX = 5
 const RANGE = MAX - MIN
@@ -16,28 +15,18 @@ const SLIDER_HEIGHT = 28   // must match .focus-slider height in globals.css
 export function RatingSlider({ value, onChange }: RatingSliderProps) {
   return (
     <div className="w-full">
-      {/* Word label + numeric value */}
+      {/* Mood word for the current position. The numeric value is stored on
+          submit but never shown to the user — the identity rejects grading
+          framing, and a visible "3.0" reads as a grade. Word-only. */}
       <div className="mb-6">
-        <p className="font-sans text-sm text-text-muted mb-1">{getRatingLabel(value)}</p>
-        <span className="font-numbers text-5xl font-semibold text-text-primary">
-          {value.toFixed(1)}
-        </span>
+        <p className="font-sans text-2xl font-medium text-text-primary lowercase">
+          {getRatingLabel(value)}
+        </p>
       </div>
 
-      {/* Whole-number labels above the tick+slider stack */}
-      <div className="relative w-full h-5 mb-1">
-        {WHOLE_LABELS.map((n) => (
-          <span
-            key={n}
-            className="absolute text-xs text-text-light font-sans -translate-x-1/2"
-            style={{ left: `${((n - MIN) / RANGE) * 100}%` }}
-          >
-            {n}
-          </span>
-        ))}
-      </div>
-
-      {/* Slider + tick marks overlaid — same pattern as DurationPicker. */}
+      {/* Slider + tick marks overlaid. Ticks are unlabeled — visual guides
+          only, no numbers. Endpoint mood-words below give the user a sense
+          of the span without turning positions into grades. */}
       <div className="relative w-full" style={{ height: SLIDER_HEIGHT }}>
         <svg
           className="absolute inset-0 w-full pointer-events-none"
@@ -78,6 +67,17 @@ export function RatingSlider({ value, onChange }: RatingSliderProps) {
           aria-valuemax={MAX}
           aria-valuenow={value}
         />
+      </div>
+
+      {/* Endpoint word anchors — set the emotional span without labeling
+          intermediate positions. Muted, small, non-competing. */}
+      <div className="relative w-full h-4 mt-2">
+        <span className="absolute left-0 font-sans text-xs text-text-light lowercase">
+          scattered
+        </span>
+        <span className="absolute right-0 font-sans text-xs text-text-light lowercase">
+          flowing
+        </span>
       </div>
     </div>
   )

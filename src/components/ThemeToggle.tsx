@@ -1,12 +1,16 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 
+// The internal key stays 'cream' so persisted user preferences don't
+// migrate (a user who picked "Cream" last week gets the new Paper default
+// without needing to re-pick). The user-facing label reflects the real
+// aesthetic.
 export type Theme = 'cream' | 'dark' | 'cherry'
 
 const THEMES: { key: Theme; label: string; swatch: string }[] = [
-  { key: 'cream',  label: 'Cream',           swatch: '#fdf6ee' },
-  { key: 'dark',   label: 'Dark',            swatch: '#1a1512' },
-  { key: 'cherry', label: 'Cherry blossom',  swatch: '#fbcfe8' },
+  { key: 'cream',  label: 'Paper',          swatch: '#f2ede1' },
+  { key: 'dark',   label: 'Ink',            swatch: '#1a1614' },
+  { key: 'cherry', label: 'Cherry blossom', swatch: '#fbcfe8' },
 ]
 
 /** Apply a theme to <html> and persist the choice. */

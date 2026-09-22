@@ -19,6 +19,7 @@ export interface InProgressSession {
   isExpired: boolean            // true if planned duration passed before Done was clicked
   tasks: InProgressTask[]       // optional sub-tasks entered at setup, checked during timer
   existingSessionId: string | null   // set when resuming a saved-for-later session
+  roomId: string | null              // set when the session was part of a shared room
 }
 
 const KEY = 'focus_in_progress'

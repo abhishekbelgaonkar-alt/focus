@@ -5,7 +5,7 @@ import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
 import type { PeriodType } from '@/lib/types'
 
 const NOTE_PLACEHOLDERS = [
-  'Write anything — mood, context, distractions…',
+  'Write anything. Mood, context, whatever.',
   'Any mood, energy, or context worth remembering',
   'Notes for your future self',
   'What was different about this period?',
