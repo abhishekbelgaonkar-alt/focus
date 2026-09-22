@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, use, useCallback } from 'react'
+import { useState, useEffect, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration } from '@/lib/format'
@@ -282,6 +282,10 @@ export default function RoomPage({ params }: Props) {
   const [handleDraft, setHandleDraft] = useState('')
   const [handleError, setHandleError] = useState<string | null>(null)
 
+  // Stay-prompt dismissal — user tapped "Yes, stay" so we don't re-nag.
+  // Declared here (before any early returns) to keep hook order stable.
+  const [stayDismissed, setStayDismissed] = useState(false)
+
   const myHandle = participants.find((p) => p.is_you)?.handle ?? ''
 
   const startEditingHandle = () => {
@@ -431,7 +435,6 @@ export default function RoomPage({ params }: Props) {
 
   // Stay-prompt: within the last 2 minutes of your target and others are
   // still going. Non-blocking; user dismisses or acts.
-  const [stayDismissed, setStayDismissed] = useState(false)
   const showStayPrompt =
     !stayDismissed &&
     !myOvertime &&
