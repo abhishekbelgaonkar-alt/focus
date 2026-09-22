@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatDuration } from '@/lib/format'
 import {
   elapsedMinutes,
+  elapsedSeconds,
   remainingMinutes,
   isInOvertime,
   formatParticipantStatus,
@@ -264,13 +265,16 @@ export default function RoomPage({ params }: Props) {
       endReason: null,
       actualDurationMinutes: elapsed,
       isExpired: false,
-      tasks: (room.tasks ?? []).map((t, i) => ({
-        id: `${myJoinedAt}-${i}`,
-        name: t.name,
-        position: i,
-        completedAt: null,
-        elapsedSecondsAtCompletion: null,
-      })),
+      tasks: (room.tasks ?? []).map((t, i) => {
+        const checked = checkedTasks.get(i)
+        return {
+          id: `${myJoinedAt}-${i}`,
+          name: t.name,
+          position: i,
+          completedAt: checked?.completedAt ?? null,
+          elapsedSecondsAtCompletion: checked?.elapsedSecondsAtCompletion ?? null,
+        }
+      }),
       existingSessionId: null,
       roomId: room.id,
     })
@@ -289,6 +293,30 @@ export default function RoomPage({ params }: Props) {
   // Stay-prompt dismissal — user tapped "Yes, stay" so we don't re-nag.
   // Declared here (before any early returns) to keep hook order stable.
   const [stayDismissed, setStayDismissed] = useState(false)
+
+  // Private per-user task check-offs. Keyed by task index in room.tasks.
+  // Not synced to other participants — each person tracks their own
+  // progress. Persisted only client-side; passed to saveSession at End
+  // so they end up in session_tasks like a solo session would.
+  const [checkedTasks, setCheckedTasks] = useState<
+    Map<number, { completedAt: string; elapsedSecondsAtCompletion: number }>
+  >(new Map())
+
+  const toggleRoomTask = (index: number) => {
+    if (!myJoinedAt) return
+    setCheckedTasks((prev) => {
+      const next = new Map(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.set(index, {
+          completedAt: new Date().toISOString(),
+          elapsedSecondsAtCompletion: elapsedSeconds(myJoinedAt, Date.now()),
+        })
+      }
+      return next
+    })
+  }
 
   const myHandle = participants.find((p) => p.is_you)?.handle ?? ''
 
@@ -591,12 +619,52 @@ export default function RoomPage({ params }: Props) {
             </p>
           )}
           {room.tasks?.length > 0 && (
-            <ul className="mt-2">
-              {(room.tasks as Array<{ name: string }>).map((t, i) => (
-                <li key={i} className="font-sans text-xs text-text-muted">
-                  · {t.name}
-                </li>
-              ))}
+            <ul className="mt-2 flex flex-col">
+              {(room.tasks as Array<{ name: string }>).map((t, i) => {
+                const done = checkedTasks.has(i)
+                return (
+                  <li
+                    key={i}
+                    className="flex items-center gap-3 py-2 border-b border-border-warm last:border-0"
+                  >
+                    <button
+                      onClick={() => toggleRoomTask(i)}
+                      aria-label={done ? `Uncheck ${t.name}` : `Check off ${t.name}`}
+                      className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-[background-color,border-color,transform] duration-300 ease-out ${
+                        done
+                          ? 'bg-check-green border-check-green scale-105'
+                          : 'border-border-warm bg-transparent scale-100'
+                      }`}
+                    >
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 10 10"
+                        aria-hidden="true"
+                        className={`transition-[opacity,transform] duration-300 ease-out ${
+                          done ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                        }`}
+                      >
+                        <path
+                          d="M1.5 5.5 L4 8 L8.5 2.5"
+                          stroke="white"
+                          strokeWidth="1.75"
+                          fill="none"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    <span
+                      className={`flex-1 font-sans text-sm ${
+                        done ? 'text-text-muted line-through' : 'text-text-primary'
+                      }`}
+                    >
+                      {t.name}
+                    </span>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>

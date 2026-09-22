@@ -95,6 +95,7 @@ function HomePageInner() {
   // Inline scheduler on the home page — expands when "+ Schedule a goal" is tapped.
   const [scheduling, setScheduling] = useState(false)
   const [scheduleGoalId, setScheduleGoalId] = useState<string>('')
+  const [roomError, setRoomError] = useState<string | null>(null)
   const [scheduleDays, setScheduleDays] = useState<Weekday[]>([])
   const [savingSchedule, setSavingSchedule] = useState(false)
 
@@ -388,6 +389,11 @@ function HomePageInner() {
     })
 
     if (error || !code) {
+      console.error('[create_room] failed', error)
+      setRoomError(
+        error?.message ??
+          "Couldn't start the room. Check that anonymous auth is enabled in Supabase and the rooms migration has been applied."
+      )
       return
     }
     router.push(`/r/${code}`)
@@ -1194,6 +1200,14 @@ function HomePageInner() {
 
       <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      {roomError && (
+        <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm font-sans z-50 flex items-start gap-2">
+          <span className="flex-1">{roomError}</span>
+          <button onClick={() => setRoomError(null)} className="text-red-700 shrink-0 px-1">
+            ×
+          </button>
+        </div>
+      )}
     </main>
   )
 }
