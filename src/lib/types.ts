@@ -116,6 +116,9 @@ export interface RoomParticipant {
   joined_at: string
   left_at: string | null
   session_id: string | null
+  tasks: Array<{ name: string }>
+  goal_id: string | null
+  goal_label: string | null
 }
 
 // Enriched participant for the room UI: joins handle from user_profiles.
@@ -125,6 +128,9 @@ export interface RoomParticipantView {
   joined_at: string
   left_at: string | null
   is_you: boolean
+  tasks: Array<{ name: string }>
+  goal_id: string | null
+  goal_label: string | null
 }
 
 export interface GoalShareInvite {

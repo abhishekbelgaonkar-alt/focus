@@ -96,6 +96,9 @@ function HomePageInner() {
   const [scheduling, setScheduling] = useState(false)
   const [scheduleGoalId, setScheduleGoalId] = useState<string>('')
   const [roomError, setRoomError] = useState<string | null>(null)
+  // Room-creation: whether joiners inherit the host's tasks/goal as their
+  // starting setup. Default on — matches the "friend sets me up" case.
+  const [propagateSetup, setPropagateSetup] = useState(true)
   const [scheduleDays, setScheduleDays] = useState<Weekday[]>([])
   const [savingSchedule, setSavingSchedule] = useState(false)
 
@@ -385,7 +388,7 @@ function HomePageInner() {
       p_goal_id: goalId,
       p_goal_label: goalLabel,
       p_tasks: taskDrafts.map((t) => ({ name: t.name })),
-      p_propagate_setup: true,
+      p_propagate_setup: propagateSetup,
     })
 
     if (error || !code) {
@@ -758,6 +761,18 @@ function HomePageInner() {
           >
             Focus with someone
           </button>
+          <label className="flex items-start gap-2 cursor-pointer select-none px-1 -mt-1">
+            <input
+              type="checkbox"
+              checked={propagateSetup}
+              onChange={(e) => setPropagateSetup(e.target.checked)}
+              className="mt-0.5 accent-coral"
+            />
+            <span className="font-sans text-xs text-text-muted">
+              Share my tasks and goal with people who join. Uncheck if you want
+              them to bring their own.
+            </span>
+          </label>
         </div>
 
         {/* LEFT column — Today's plan + Continue a goal (col 1 on md+) */}
