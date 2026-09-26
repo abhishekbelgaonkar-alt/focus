@@ -5,6 +5,8 @@ import { loadSession, saveSession, clearSession } from '@/lib/session-state'
 import { getRemainingMs, formatTime, isTimerExpired } from '@/lib/timer'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration } from '@/lib/format'
+import { taskDurations, formatTaskDuration } from '@/lib/tasks'
+import { TaskCheck } from '@/components/TaskCheck'
 import type { InProgressSession } from '@/lib/session-state'
 
 interface TimerState {
@@ -43,7 +45,7 @@ export default function TimerPage() {
 
   useEffect(() => {
     const s = loadSession()
-    if (!s) { router.replace('/setup'); return }
+    if (!s) { router.replace('/'); return }
     setSession(s)
 
     const sessionStartedAt = new Date(s.startedAt).getTime()
@@ -167,7 +169,6 @@ export default function TimerPage() {
     const rowPayload = {
       user_id: userData.user.id,
       goal_id: session.goalId,
-      category_id: session.categoryId,
       session_name: derivedName,
       planned_duration_minutes: session.plannedDurationMinutes,
       actual_duration_minutes: null,
@@ -410,25 +411,7 @@ export default function TimerPage() {
 
       {/* Task list — check off as you complete each; duration recorded per task */}
       {session.tasks.length > 0 && (() => {
-        const sortedCompleted = [...session.tasks]
-          .filter((t) => t.completedAt !== null && t.elapsedSecondsAtCompletion !== null)
-          .sort((a, b) => (a.elapsedSecondsAtCompletion ?? 0) - (b.elapsedSecondsAtCompletion ?? 0))
-
-        // Per-task duration = its elapsed - previous completed task's elapsed
-        const durationById = new Map<string, number>()
-        let prev = 0
-        for (const t of sortedCompleted) {
-          durationById.set(t.id, Math.max(0, (t.elapsedSecondsAtCompletion ?? 0) - prev))
-          prev = t.elapsedSecondsAtCompletion ?? prev
-        }
-
-        const fmtDur = (sec: number) => {
-          if (sec < 60) return `${sec}s`
-          const m = Math.floor(sec / 60)
-          const s = sec % 60
-          return s === 0 ? `${m}m` : `${m}m ${s}s`
-        }
-
+        const durationById = taskDurations(session.tasks)
         return (
           <div className="w-full max-w-sm mt-12">
             <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-3">
@@ -443,34 +426,7 @@ export default function TimerPage() {
                     key={t.id}
                     className="flex items-center gap-3 py-2.5 border-b border-border-warm last:border-0"
                   >
-                    <button
-                      onClick={() => toggleTask(t.id)}
-                      aria-label={done ? `Uncheck ${t.name}` : `Check off ${t.name}`}
-                      className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-[background-color,border-color,transform] duration-300 ease-out ${
-                        done
-                          ? 'bg-check-green border-check-green scale-105'
-                          : 'border-border-warm bg-transparent scale-100'
-                      }`}
-                    >
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 10 10"
-                        aria-hidden="true"
-                        className={`transition-[opacity,transform] duration-300 ease-out ${
-                          done ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
-                        }`}
-                      >
-                        <path
-                          d="M1.5 5.5 L4 8 L8.5 2.5"
-                          stroke="white"
-                          strokeWidth="1.75"
-                          fill="none"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
+                    <TaskCheck done={done} taskName={t.name} onToggle={() => toggleTask(t.id)} />
                     <span
                       className={`flex-1 font-sans text-sm ${
                         done ? 'text-text-muted line-through' : 'text-text-primary'
@@ -480,7 +436,7 @@ export default function TimerPage() {
                     </span>
                     {done && dur !== undefined && (
                       <span className="font-numbers text-xs text-text-muted shrink-0">
-                        {fmtDur(dur)}
+                        {formatTaskDuration(dur)}
                       </span>
                     )}
                   </li>

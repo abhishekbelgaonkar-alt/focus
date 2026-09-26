@@ -105,17 +105,20 @@ export function getWeekViewPoints(
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
+/** Monday of the week containing `date`, as YYYY-MM-DD. */
+export function weekStartKey(date: Date): string {
+  const d = new Date(date)
+  const dow = d.getDay()
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+  return d.toISOString().slice(0, 10)
+}
+
 export function getMonthViewPoints(
   sessions: Pick<RawSession, 'started_at' | 'rating' | 'actual_duration_minutes'>[]
 ): ChartPoint[] {
   const byWeek = new Map<string, { ratings: number[]; minutes: number }>()
   sessions.forEach((s) => {
-    const d = new Date(s.started_at)
-    const dow = d.getDay()
-    const diff = d.getDate() - dow + (dow === 0 ? -6 : 1)
-    const mon = new Date(d)
-    mon.setDate(diff)
-    const weekKey = mon.toISOString().slice(0, 10)
+    const weekKey = weekStartKey(new Date(s.started_at))
     if (!byWeek.has(weekKey)) byWeek.set(weekKey, { ratings: [], minutes: 0 })
     const bucket = byWeek.get(weekKey)!
     if (s.rating !== null) bucket.ratings.push(s.rating)
@@ -172,45 +175,4 @@ export function getMonthGridDays(year: number, month: number): (string | null)[]
   }
   if (trailPad > 0) days.push(...Array(trailPad).fill(null))
   return days
-}
-
-// ── CSV export ───────────────────────────────────────────────────────────────
-
-type FullSession = {
-  id: string
-  session_name: string | null
-  planned_duration_minutes: number
-  actual_duration_minutes: number
-  started_at: string
-  ended_at: string
-  rating: number | null
-  notes: string | null
-  end_reason: string | null
-  goals: { name: string } | null
-  categories: { name: string } | null
-}
-
-export function generateCSV(sessions: FullSession[]): string {
-  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const headers = [
-    'id', 'goal', 'category', 'session_name', 'planned_minutes',
-    'actual_minutes', 'started_at', 'ended_at', 'rating', 'notes',
-    'end_reason',
-  ]
-  const rows = sessions.map((s) => [
-    s.id,
-    s.goals?.name ?? '',
-    s.categories?.name ?? '',
-    s.session_name ?? '',
-    s.planned_duration_minutes,
-    s.actual_duration_minutes,
-    s.started_at,
-    s.ended_at,
-    s.rating ?? '',
-    s.notes ?? '',
-    s.end_reason ?? '',
-  ])
-  return [headers.map(esc), ...rows.map((r) => r.map(esc))]
-    .map((r) => r.join(','))
-    .join('\n')
 }

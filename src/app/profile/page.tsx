@@ -18,7 +18,6 @@ interface FullSession {
   notes: string | null
   end_reason: string | null
   goals: { name: string } | null
-  categories: { name: string } | null
 }
 
 export default function ProfilePage() {
@@ -41,7 +40,7 @@ export default function ProfilePage() {
           .select(`
             id, session_name, planned_duration_minutes, actual_duration_minutes,
             started_at, ended_at, rating, notes, end_reason,
-            goals(name), categories(name)
+            goals(name)
           `)
           .eq('user_id', data.user.id)
           .order('started_at', { ascending: true })
@@ -57,7 +56,7 @@ export default function ProfilePage() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
-    router.push('/setup')
+    router.push('/')
   }
 
   if (loading) return null

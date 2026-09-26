@@ -7,7 +7,6 @@ import {
   getRatingTierColor,
   buildHeatmapDays,
   getMonthGridDays,
-  generateCSV,
 } from '@/lib/stats'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -129,32 +128,5 @@ describe('getMonthGridDays', () => {
 
   it('total cells is divisible by 7', () => {
     expect(getMonthGridDays(2026, 8).length % 7).toBe(0)
-  })
-})
-
-describe('generateCSV', () => {
-  const SESSION = {
-    id: 'abc',
-    session_name: 'Fix bug',
-    planned_duration_minutes: 25,
-    actual_duration_minutes: 25,
-    started_at: '2026-09-01T10:00:00Z',
-    ended_at: '2026-09-01T10:25:00Z',
-    rating: 4.0,
-    notes: 'It went well',
-    end_reason: 'on_time' as const,
-    goals: { name: 'Work' },
-    categories: null,
-  }
-
-  it('produces a CSV string with a header row and one data row', () => {
-    const lines = generateCSV([SESSION]).split('\n')
-    expect(lines[0]).toContain('id')
-    expect(lines[0]).toContain('rating')
-    expect(lines).toHaveLength(2)
-  })
-
-  it('escapes double-quotes inside cell values', () => {
-    expect(generateCSV([{ ...SESSION, notes: 'She said "hello"' }])).toContain('She said ""hello""')
   })
 })

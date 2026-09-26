@@ -5,17 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { formatDuration, timeAgo } from '@/lib/format'
 import { getGoalColor, GOAL_PALETTE } from '@/lib/goal-color'
 import { SearchBar } from '@/components/SearchBar'
+import type { GoalStat } from '@/lib/types'
 
-interface GoalStat {
-  goal_id: string
-  name: string
-  status: 'active' | 'completed' | 'abandoned'
-  color: string | null
-  session_count: number
-  total_minutes: number
-  avg_rating: number | null
-  last_session_at: string | null
-}
 
 type SortKey = 'recent' | 'time' | 'alpha'
 type FilterKey = 'active' | 'completed' | 'abandoned' | 'all'
@@ -318,7 +309,7 @@ export default function AllGoalsPage() {
                   <div className="mt-3 p-3 rounded-xl border border-red-300 bg-red-50">
                     <p className="font-sans text-xs text-text-primary mb-3">
                       Delete <strong>{g.name}</strong>? Its sessions stay in your
-                      history but become uncategorized.
+                      history without a goal.
                     </p>
                     <div className="flex gap-3">
                       <button

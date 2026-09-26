@@ -13,7 +13,6 @@ export interface InProgressSession {
   startedAt: string           // ISO timestamp set when "Start" is clicked
   setupFocusText: string | null
   goalId: string | null
-  categoryId: string | null
   endReason: EndReason | null   // set by branch question on /rate when isExpired
   actualDurationMinutes: number | null  // elapsed at Done (rounded, min 1); null if expired
   isExpired: boolean            // true if planned duration passed before Done was clicked

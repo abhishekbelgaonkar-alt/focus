@@ -90,7 +90,7 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
-    router.push('/setup')
+    router.push('/')
   }
 
   const handleDeleteAccount = async () => {
@@ -98,7 +98,7 @@ export default function SettingsPage() {
     await supabase.rpc('delete_user')
     await supabase.auth.signOut()
     localStorage.clear()
-    router.push('/setup')
+    router.push('/')
   }
 
   if (loading) return null

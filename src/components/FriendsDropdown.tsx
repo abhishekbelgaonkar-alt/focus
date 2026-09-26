@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useDismiss } from '@/lib/use-dismiss'
 import type { FriendRequest, FriendView, UserProfile } from '@/lib/types'
 
 /*
@@ -115,27 +116,7 @@ export function FriendsDropdown({ open, onClose, isAnonymous }: FriendsDropdownP
     return () => window.clearInterval(interval)
   }, [open, load])
 
-  // Close on outside click + Escape. Attach on next tick so the click that
-  // opened the dropdown doesn't immediately close it.
-  useEffect(() => {
-    if (!open) return
-    let handler: ((e: MouseEvent) => void) | null = null
-    const attachTimer = window.setTimeout(() => {
-      handler = (e: MouseEvent) => {
-        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-          onClose()
-        }
-      }
-      window.addEventListener('click', handler)
-    }, 0)
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.clearTimeout(attachTimer)
-      if (handler) window.removeEventListener('click', handler)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open, onClose])
+  useDismiss(containerRef, open, onClose)
 
   const acceptRequest = async (requestId: string) => {
     await supabase.rpc('accept_friend_request', { request_id: requestId })

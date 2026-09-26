@@ -21,7 +21,6 @@ interface SearchResult {
   rating: number | null
   started_at: string
   goals: { id: string; name: string; color: string | null } | null
-  categories: { name: string } | null
 }
 
 interface SearchBarProps {
@@ -52,7 +51,7 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
       try {
         const { data } = await supabase
           .from('sessions')
-          .select('id, session_name, notes, rating, started_at, goals(id, name, color), categories(name)')
+          .select('id, session_name, notes, rating, started_at, goals(id, name, color)')
           .or(`session_name.ilike.%${trimmed}%,notes.ilike.%${trimmed}%`)
           .order('started_at', { ascending: false })
           .limit(20)
@@ -162,7 +161,6 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
               const goalColor = r.goals
                 ? getGoalColor({ id: r.goals.id, color: r.goals.color })
                 : null
-              const categoryName = r.categories?.name ?? null
               const matchField = (() => {
                 const q = trimmed.toLowerCase()
                 if (r.notes?.toLowerCase().includes(q)) return r.notes
@@ -184,8 +182,6 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
                     >
                       {goalName}
                     </p>
-                  ) : categoryName ? (
-                    <p className="font-sans text-xs text-text-muted mb-0.5">{categoryName}</p>
                   ) : null}
                   <div className="flex items-baseline gap-3 mb-1">
                     <p className="font-sans text-sm font-medium text-text-primary">

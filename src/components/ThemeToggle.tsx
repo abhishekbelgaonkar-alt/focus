@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useDismiss } from '@/lib/use-dismiss'
 
 // The internal key stays 'cream' so persisted user preferences don't
 // migrate (a user who picked "Cream" last week gets the new Paper default
@@ -38,30 +39,8 @@ export function ThemeToggle() {
     else setCurrent('cream')
   }, [])
 
-  // Close popover on outside click / Escape. Uses the `click` event (fires
-  // AFTER React's synthetic onClick) plus a setTimeout to skip the current
-  // event loop tick, so the same click that opens the popover can't
-  // immediately close it, and clicks on the popover options can complete
-  // their React handler before the outside detector runs.
-  useEffect(() => {
-    if (!open) return
-    let handler: ((e: MouseEvent) => void) | null = null
-    const attachTimer = window.setTimeout(() => {
-      handler = (e: MouseEvent) => {
-        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-          setOpen(false)
-        }
-      }
-      window.addEventListener('click', handler)
-    }, 0)
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      clearTimeout(attachTimer)
-      if (handler) window.removeEventListener('click', handler)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  const close = useCallback(() => setOpen(false), [])
+  useDismiss(containerRef, open, close)
 
   const pick = (t: Theme) => {
     setCurrent(t)

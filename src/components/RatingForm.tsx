@@ -12,17 +12,17 @@ const SESSION_NAME_PLACEHOLDERS = [
   'e.g. Design review prep',
 ]
 
-const NEW_GOAL_PLACEHOLDERS = [
+export const NEW_GOAL_PLACEHOLDERS = [
   'e.g. Finals prep',
   'e.g. Portfolio site',
   'e.g. Learn Spanish',
+  'e.g. Master’s thesis',
   'e.g. Ship v1',
 ]
 
 export interface GoalOption {
   id: string
   name: string
-  type: 'goal' | 'category'
 }
 
 export interface RatingFormData {
@@ -31,7 +31,6 @@ export interface RatingFormData {
   sessionName: string
   goalText: string          // used when creating a new goal
   existingGoalId: string | null
-  existingCategoryId: string | null
 }
 
 interface RatingFormProps {
@@ -71,18 +70,15 @@ export function RatingForm({
 
   // Goal-assignment state (only relevant when showGoalPrompt=true)
   const [goalMode, setGoalMode] = useState<GoalMode>('skip')
-  const [selectedOptionKey, setSelectedOptionKey] = useState<string>('')  // "goal:<id>" or "category:<id>"
+  const [selectedGoalId, setSelectedGoalId] = useState<string>('')
   const [goalText, setGoalText] = useState('')
 
   const handleSave = () => {
     let existingGoalId: string | null = null
-    let existingCategoryId: string | null = null
     let finalGoalText = ''
 
-    if (showGoalPrompt && goalMode === 'existing' && selectedOptionKey) {
-      const [kind, id] = selectedOptionKey.split(':')
-      if (kind === 'goal') existingGoalId = id
-      else if (kind === 'category') existingCategoryId = id
+    if (showGoalPrompt && goalMode === 'existing' && selectedGoalId) {
+      existingGoalId = selectedGoalId
     } else if (showGoalPrompt && goalMode === 'create') {
       finalGoalText = goalText
     }
@@ -93,7 +89,6 @@ export function RatingForm({
       sessionName,
       goalText: finalGoalText,
       existingGoalId,
-      existingCategoryId,
     })
   }
 
@@ -184,25 +179,16 @@ export function RatingForm({
 
               {goalMode === 'existing' && (
                 <select
-                  value={selectedOptionKey}
-                  onChange={(e) => setSelectedOptionKey(e.target.value)}
+                  value={selectedGoalId}
+                  onChange={(e) => setSelectedGoalId(e.target.value)}
                   className="w-full bg-transparent border-b border-border-warm pb-1 font-sans text-sm text-text-primary focus:outline-none focus:border-coral"
                 >
                   <option value="">Choose one…</option>
-                  {goalOptions
-                    .filter((o) => o.type === 'goal')
-                    .map((o) => (
-                      <option key={`goal:${o.id}`} value={`goal:${o.id}`}>
-                        {o.name}
-                      </option>
-                    ))}
-                  {goalOptions
-                    .filter((o) => o.type === 'category')
-                    .map((o) => (
-                      <option key={`category:${o.id}`} value={`category:${o.id}`}>
-                        {o.name} (category)
-                      </option>
-                    ))}
+                  {goalOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
                 </select>
               )}
 

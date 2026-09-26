@@ -4,7 +4,6 @@ import {
   elapsedSeconds,
   remainingMinutes,
   isInOvertime,
-  formatMinutesShort,
   formatParticipantStatus,
   participantTargetEndIso,
   effectiveDurationForTarget,
@@ -79,30 +78,6 @@ describe('isInOvertime', () => {
 
   it('is true past the target', () => {
     expect(isInOvertime(JOINED, 25, joinedMs + 26 * 60_000)).toBe(true)
-  })
-})
-
-describe('formatMinutesShort', () => {
-  it('under an hour uses Xm', () => {
-    expect(formatMinutesShort(0)).toBe('0m')
-    expect(formatMinutesShort(1)).toBe('1m')
-    expect(formatMinutesShort(59)).toBe('59m')
-  })
-
-  it('at 60 minutes uses 1h', () => {
-    expect(formatMinutesShort(60)).toBe('1h')
-  })
-
-  it('over an hour with remainder uses Xh Ym', () => {
-    expect(formatMinutesShort(83)).toBe('1h 23m')
-    expect(formatMinutesShort(125)).toBe('2h 5m')
-  })
-
-  it('formats negatives as their absolute value', () => {
-    // Overtime callers pass a pre-negated value to the +/over branch;
-    // the helper itself just returns abs for symmetry.
-    expect(formatMinutesShort(-5)).toBe('5m')
-    expect(formatMinutesShort(-90)).toBe('1h 30m')
   })
 })
 

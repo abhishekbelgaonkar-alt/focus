@@ -6,6 +6,17 @@ import { DurationPicker } from '@/components/DurationPicker'
 import { SearchBar } from '@/components/SearchBar'
 import dynamic from 'next/dynamic'
 import { FriendsDropdown } from '@/components/FriendsDropdown'
+import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { ErrorToast } from '@/components/ErrorToast'
+import { WeekdayPicker } from '@/components/WeekdayPicker'
+import type { Weekday, GoalStat } from '@/lib/types'
+import { formatDuration, timeAgo, todayWeekday } from '@/lib/format'
+import { saveSession } from '@/lib/session-state'
+import { NEW_GOAL_PLACEHOLDERS } from '@/components/RatingForm'
+import { getGoalColor } from '@/lib/goal-color'
+import { calcDayStreak } from '@/lib/stats'
+
 // Modals are lazy-loaded — they're gated behind a tap, so keeping them out of
 // the initial home-page bundle shaves parse/eval time on first paint.
 const HowItWorksModal = dynamic(
@@ -16,13 +27,6 @@ const AboutModal = dynamic(
   () => import('@/components/AboutModal').then((m) => m.AboutModal),
   { ssr: false }
 )
-import { CyclingPlaceholder } from '@/components/CyclingPlaceholder'
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { WeekdayPicker } from '@/components/WeekdayPicker'
-import type { Weekday } from '@/lib/types'
-import { timeAgo } from '@/lib/format'
-import { getGoalColor } from '@/lib/goal-color'
-import { calcDayStreak } from '@/lib/stats'
 
 const FOCUS_PLACEHOLDERS = [
   'e.g. Finish thermodynamics ch. 1',
@@ -42,30 +46,6 @@ const TASK_PLACEHOLDERS = [
   'e.g. Warm up scales',
 ]
 
-const NEW_GOAL_PLACEHOLDERS = [
-  'e.g. Finals prep',
-  'e.g. Portfolio site',
-  'e.g. Learn Spanish',
-  'e.g. Master’s thesis',
-  'e.g. Ship v1',
-]
-import { saveSession } from '@/lib/session-state'
-import { formatDuration } from '@/lib/format'
-
-interface GoalStat {
-  goal_id: string
-  name: string
-  status: string
-  color: string | null
-  schedule: string[] | null
-  created_at: string
-  session_count: number
-  total_minutes: number
-  avg_rating: number | null
-  last_session_at: string | null
-}
-
-const WEEKDAYS: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 const DEFAULT_DURATION = 3
 
 function HomePageInner() {
@@ -84,7 +64,6 @@ function HomePageInner() {
       planned_duration_minutes: number
       elapsed_seconds: number | null
       goal_id: string | null
-      category_id: string | null
       goals: { id: string; name: string; color: string | null } | null
     }>
   >([])
@@ -110,23 +89,14 @@ function HomePageInner() {
     const { data: stats } = await supabase.rpc('get_goal_stats')
     const all = (stats ?? []) as GoalStat[]
     setGoalStats(all)
-    const today = WEEKDAYS[new Date().getDay()]
+    const today = todayWeekday()
     setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
     setScheduling(false)
     setScheduleGoalId('')
     setScheduleDays([])
     setSavingSchedule(false)
   }
-  const [templates, setTemplates] = useState<
-    Array<{
-      id: string
-      goal_id: string | null
-      name: string
-      planned_duration_minutes: number
-      tasks: Array<{ name: string }>
-      schedule: string[] | null
-    }>
-  >([])
+  const [templates, setTemplates] = useState<Template[]>([])
   const [incompleteTasks, setIncompleteTasks] = useState<
     Array<{
       id: string
@@ -135,7 +105,6 @@ function HomePageInner() {
         id: string
         session_name: string | null
         goals: { id: string; name: string; color: string | null } | null
-        categories: { name: string } | null
       } | null
     }>
   >([])
@@ -212,7 +181,7 @@ function HomePageInner() {
           supabase
             .from('sessions')
             .select(
-              'id, session_name, started_at, planned_duration_minutes, elapsed_seconds, goal_id, category_id, goals(id, name, color)'
+              'id, session_name, started_at, planned_duration_minutes, elapsed_seconds, goal_id, goals(id, name, color)'
             )
             .eq('user_id', data.user.id)
             .eq('status', 'in_progress')
@@ -254,7 +223,7 @@ function HomePageInner() {
         const { data: incTasks, count: incompleteCount } = await supabase
           .from('session_tasks')
           .select(
-            'id, name, sessions!inner(id, session_name, user_id, status, goals(id, name, color), categories(name))',
+            'id, name, sessions!inner(id, session_name, user_id, status, goals(id, name, color))',
             { count: 'exact' }
           )
           .is('completed_at', null)
@@ -293,7 +262,7 @@ function HomePageInner() {
           setGoalStreaks(streaks)
         }
 
-        const today = WEEKDAYS[new Date().getDay()]
+        const today = todayWeekday()
         setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
 
         if (preselectedGoalId) {
@@ -318,31 +287,30 @@ function HomePageInner() {
     })()
   }, [preselectedGoalId])
 
-  const handleStart = async () => {
-    let goalId: string | null = null
+  // The goal picked in the setup form. A new goal is created upfront so this
+  // session (and later ones on it) roll up under it in All Goals.
+  const resolveGoal = async (): Promise<{ id: string; name: string } | null> => {
+    if (goalMode.kind === 'existing') return { id: goalMode.id, name: goalMode.name }
+    const name = newGoalName.trim()
+    if (goalMode.kind !== 'new' || !name) return null
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData?.user) return null
+    const { data: newGoal } = await supabase
+      .from('goals')
+      .insert({ user_id: userData.user.id, name })
+      .select('id')
+      .single()
+    return newGoal ? { id: newGoal.id, name } : null
+  }
 
-    if (goalMode.kind === 'existing') {
-      goalId = goalMode.id
-    } else if (goalMode.kind === 'new' && newGoalName.trim()) {
-      // Create the goal upfront so this session (and subsequent ones on it)
-      // roll up under it in All Goals.
-      const { data: userData } = await supabase.auth.getUser()
-      if (userData?.user) {
-        const { data: newGoal } = await supabase
-          .from('goals')
-          .insert({ user_id: userData.user.id, name: newGoalName.trim() })
-          .select()
-          .single()
-        goalId = newGoal?.id ?? null
-      }
-    }
+  const handleStart = async () => {
+    const goalId = (await resolveGoal())?.id ?? null
 
     saveSession({
       plannedDurationMinutes: duration,
       startedAt: new Date().toISOString(),
       setupFocusText: focusText.trim() || null,
       goalId,
-      categoryId: null,
       endReason: null,
       actualDurationMinutes: null,
       isExpired: false,
@@ -362,31 +330,12 @@ function HomePageInner() {
   // Create a shared room with the current setup and route to it. The host
   // becomes the first participant; the room page handles timer + presence.
   const handleStartRoom = async () => {
-    let goalId: string | null = null
-    let goalLabel: string | null = null
-
-    if (goalMode.kind === 'existing') {
-      goalId = goalMode.id
-      const g = goalStats.find((s) => s.goal_id === goalMode.id)
-      goalLabel = g?.name ?? null
-    } else if (goalMode.kind === 'new' && newGoalName.trim()) {
-      const { data: userData } = await supabase.auth.getUser()
-      if (userData?.user) {
-        const { data: newGoal } = await supabase
-          .from('goals')
-          .insert({ user_id: userData.user.id, name: newGoalName.trim() })
-          .select()
-          .single()
-        goalId = newGoal?.id ?? null
-        goalLabel = newGoalName.trim()
-      }
-    }
-
+    const goal = await resolveGoal()
     const { data: code, error } = await supabase.rpc('create_room', {
       p_duration: duration,
       p_session_name: focusText.trim() || null,
-      p_goal_id: goalId,
-      p_goal_label: goalLabel,
+      p_goal_id: goal?.id ?? null,
+      p_goal_label: goal?.name ?? null,
       p_tasks: taskDrafts.map((t) => ({ name: t.name })),
       p_propagate_setup: propagateSetup,
     })
@@ -411,7 +360,7 @@ function HomePageInner() {
 
   // Load a template's shape into the setup form: focus text, duration,
   // tasks, and optional goal. User can edit anything before hitting Start.
-  const handleUseTemplate = (t: (typeof templates)[number]) => {
+  const handleUseTemplate = (t: Template) => {
     setFocusText(t.name)
     setDuration(t.planned_duration_minutes)
     setTaskDrafts(
@@ -442,7 +391,7 @@ function HomePageInner() {
     const { data: row } = await supabase
       .from('sessions')
       .select(
-        'id, session_name, planned_duration_minutes, elapsed_seconds, goal_id, category_id, session_tasks(id, name, position, completed_at)'
+        'id, session_name, planned_duration_minutes, elapsed_seconds, goal_id, session_tasks(id, name, position, completed_at)'
       )
       .eq('id', sessionId)
       .single()
@@ -461,7 +410,6 @@ function HomePageInner() {
       startedAt: virtualStartedAt,
       setupFocusText: row.session_name,
       goalId: row.goal_id,
-      categoryId: row.category_id,
       endReason: null,
       actualDurationMinutes: null,
       isExpired: false,
@@ -910,9 +858,7 @@ function HomePageInner() {
                     const goalColor = s?.goals
                       ? getGoalColor({ id: s.goals.id, color: s.goals.color })
                       : null
-                    const otherContext = goalName
-                      ? null
-                      : s?.categories?.name ?? s?.session_name ?? null
+                    const otherContext = goalName ? null : s?.session_name ?? null
                     return (
                       <button
                         key={t.id}
@@ -983,7 +929,7 @@ function HomePageInner() {
 
           {(() => {
             const weekdayName = new Date().toLocaleDateString('en-US', { weekday: 'long' })
-            const weekdayShort = WEEKDAYS[new Date().getDay()]
+            const weekdayShort = todayWeekday()
             const scheduledTemplates = templates.filter((t) =>
               t.schedule?.includes(weekdayShort) ?? false
             )
@@ -1120,36 +1066,9 @@ function HomePageInner() {
                       })}
 
                       {/* Scheduled templates — two-line, dot + name + meta */}
-                      {scheduledTemplates.map((t) => {
-                        const linkedGoal = t.goal_id
-                          ? goalStats.find((g) => g.goal_id === t.goal_id)
-                          : null
-                        const color = linkedGoal
-                          ? getGoalColor({ id: linkedGoal.goal_id, color: linkedGoal.color })
-                          : '#c9b79c'
-                        const taskCount = t.tasks?.length ?? 0
-                        return (
-                          <button
-                            key={`tmpl-${t.id}`}
-                            onClick={() => handleUseTemplate(t)}
-                            className="w-full text-left flex items-start gap-2"
-                          >
-                            <span
-                              className="w-2 h-2 rounded-full shrink-0 mt-1.5"
-                              style={{ backgroundColor: color }}
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-sans text-sm font-medium text-text-primary truncate">
-                                {t.name}
-                              </span>
-                              <span className="block font-sans text-xs text-tag-text/70 mt-0.5">
-                                {t.planned_duration_minutes} min
-                                {taskCount > 0 && ` · ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`}
-                              </span>
-                            </span>
-                          </button>
-                        )
-                      })}
+                      {scheduledTemplates.map((t) => (
+                        <TemplateRow key={t.id} template={t} goalStats={goalStats} onUse={handleUseTemplate} metaClass="text-tag-text/70" />
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1167,36 +1086,9 @@ function HomePageInner() {
 
                   {hasQuickStarts && (
                     <div className="flex flex-col gap-3 mb-3">
-                      {quickStartTemplates.map((t) => {
-                        const linkedGoal = t.goal_id
-                          ? goalStats.find((g) => g.goal_id === t.goal_id)
-                          : null
-                        const color = linkedGoal
-                          ? getGoalColor({ id: linkedGoal.goal_id, color: linkedGoal.color })
-                          : '#c9b79c'
-                        const taskCount = t.tasks?.length ?? 0
-                        return (
-                          <button
-                            key={`quick-${t.id}`}
-                            onClick={() => handleUseTemplate(t)}
-                            className="w-full text-left flex items-start gap-2"
-                          >
-                            <span
-                              className="w-2 h-2 rounded-full shrink-0 mt-1.5"
-                              style={{ backgroundColor: color }}
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-sans text-sm font-medium text-text-primary truncate">
-                                {t.name}
-                              </span>
-                              <span className="block font-sans text-xs text-text-muted mt-0.5">
-                                {t.planned_duration_minutes} min
-                                {taskCount > 0 && ` · ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`}
-                              </span>
-                            </span>
-                          </button>
-                        )
-                      })}
+                      {quickStartTemplates.map((t) => (
+                        <TemplateRow key={t.id} template={t} goalStats={goalStats} onUse={handleUseTemplate} metaClass="text-text-muted" />
+                      ))}
                     </div>
                   )}
 
@@ -1216,14 +1108,51 @@ function HomePageInner() {
       <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
       {roomError && (
-        <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm font-sans z-50 flex items-start gap-2">
-          <span className="flex-1">{roomError}</span>
-          <button onClick={() => setRoomError(null)} className="text-red-700 shrink-0 px-1">
-            ×
-          </button>
-        </div>
+        <ErrorToast message={roomError} onDismiss={() => setRoomError(null)} />
       )}
     </main>
+  )
+}
+
+interface Template {
+  id: string
+  goal_id: string | null
+  name: string
+  planned_duration_minutes: number
+  tasks: Array<{ name: string }>
+  schedule: string[] | null
+}
+
+// One quick-start / scheduled template: goal-colored dot, name, duration + task count.
+function TemplateRow({
+  template: t,
+  goalStats,
+  onUse,
+  metaClass,
+}: {
+  template: Template
+  goalStats: GoalStat[]
+  onUse: (t: Template) => void
+  metaClass: string
+}) {
+  const linkedGoal = t.goal_id ? goalStats.find((g) => g.goal_id === t.goal_id) : null
+  const color = linkedGoal
+    ? getGoalColor({ id: linkedGoal.goal_id, color: linkedGoal.color })
+    : 'var(--color-text-light)'
+  const taskCount = t.tasks?.length ?? 0
+  return (
+    <button onClick={() => onUse(t)} className="w-full text-left flex items-start gap-2">
+      <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: color }} />
+      <span className="min-w-0 flex-1">
+        <span className="block font-sans text-sm font-medium text-text-primary truncate">
+          {t.name}
+        </span>
+        <span className={`block font-sans text-xs ${metaClass} mt-0.5`}>
+          {t.planned_duration_minutes} min
+          {taskCount > 0 && ` · ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`}
+        </span>
+      </span>
+    </button>
   )
 }
 

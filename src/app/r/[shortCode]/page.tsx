@@ -2,7 +2,7 @@
 import { useState, useEffect, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatDuration } from '@/lib/format'
+import { formatDuration, todayWeekday } from '@/lib/format'
 import {
   elapsedMinutes,
   elapsedSeconds,
@@ -13,7 +13,8 @@ import {
   participantTargetEndIso,
 } from '@/lib/rooms'
 import { saveSession } from '@/lib/session-state'
-import type { Room, RoomParticipantView, Weekday } from '@/lib/types'
+import { TaskCheck } from '@/components/TaskCheck'
+import type { Room, RoomParticipantView } from '@/lib/types'
 
 /*
   Room page. Shared focus space where everyone brings their own work:
@@ -59,7 +60,6 @@ interface InProgressRow {
   goal_id: string | null
 }
 
-const WEEKDAYS: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
 export default function RoomPage({ params }: Props) {
   const { shortCode } = use(params)
@@ -385,7 +385,7 @@ export default function RoomPage({ params }: Props) {
 
   // Schedule check for "today: X" chip. Only surface a chip if it's not
   // already the current goal (would just be duplicative clutter).
-  const todayKey: Weekday = WEEKDAYS[new Date().getDay()]
+  const todayKey = todayWeekday()
   const scheduledTodayNotCurrent = myGoals.filter(
     (g) => g.schedule?.includes(todayKey) && g.id !== myGoalId
   )
@@ -415,7 +415,6 @@ export default function RoomPage({ params }: Props) {
       startedAt: myJoinedAt,
       setupFocusText: room.session_name,
       goalId: resolvedGoalId,
-      categoryId: null,
       endReason: null,
       actualDurationMinutes: elapsed,
       isExpired: false,
@@ -709,22 +708,7 @@ export default function RoomPage({ params }: Props) {
               const isEditing = editingTaskIndex === i
               return (
                 <li key={i} className="flex items-center gap-3 py-2 border-b border-border-warm">
-                  <button
-                    onClick={() => toggleRoomTask(i)}
-                    aria-label={done ? `Uncheck ${t.name}` : `Check off ${t.name}`}
-                    className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-[background-color,border-color,transform] duration-300 ease-out ${
-                      done ? 'bg-check-green border-check-green scale-105' : 'border-border-warm bg-transparent scale-100'
-                    }`}
-                  >
-                    <svg
-                      width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"
-                      className={`transition-[opacity,transform] duration-300 ease-out ${
-                        done ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
-                      }`}
-                    >
-                      <path d="M1.5 5.5 L4 8 L8.5 2.5" stroke="white" strokeWidth="1.75" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
+                  <TaskCheck done={done} taskName={t.name} onToggle={() => toggleRoomTask(i)} />
                   {isEditing ? (
                     <input
                       type="text"

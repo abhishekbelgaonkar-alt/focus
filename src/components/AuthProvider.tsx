@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { ErrorToast } from '@/components/ErrorToast'
 
 // Routes where we shouldn't auto-create an anonymous session — they exist
 // specifically so the user can adopt an identity (or arrive from one on
@@ -33,9 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <>
       {children}
       {error && (
-        <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm font-sans z-50">
-          Sign-in failed: {error}
-        </div>
+        <ErrorToast message={`Sign-in failed: ${error}`} />
       )}
     </>
   )

@@ -14,7 +14,6 @@ interface IncompleteTaskRow {
     started_at: string
     status: string
     goals: { id: string; name: string; color: string | null } | null
-    categories: { name: string } | null
   } | null
 }
 
@@ -32,7 +31,7 @@ export default function IncompleteTasksPage() {
         const { data } = await supabase
           .from('session_tasks')
           .select(
-            'id, name, sessions!inner(id, session_name, started_at, status, user_id, goals(id, name, color), categories(name))'
+            'id, name, sessions!inner(id, session_name, started_at, status, user_id, goals(id, name, color))'
           )
           .is('completed_at', null)
           .eq('sessions.user_id', userData.user.id)
@@ -75,7 +74,6 @@ export default function IncompleteTasksPage() {
             const goalColor = s.goals
               ? getGoalColor({ id: s.goals.id, color: s.goals.color })
               : null
-            const otherContext = goalName ? null : s.categories?.name ?? null
             const rest = [s.session_name ?? 'Session', formatDate(s.started_at)]
             return (
               <button
@@ -90,11 +88,6 @@ export default function IncompleteTasksPage() {
                   {goalName ? (
                     <>
                       <span style={{ color: goalColor ?? undefined }}>{goalName}</span>
-                      {' · '}
-                    </>
-                  ) : otherContext ? (
-                    <>
-                      {otherContext}
                       {' · '}
                     </>
                   ) : null}

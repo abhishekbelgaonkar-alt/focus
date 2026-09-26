@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { getRatingTierColor, getMinutesTierColor, getMonthGridDays } from '@/lib/stats'
+import { getRatingTierColor, getMinutesTierColor, getMonthGridDays, weekStartKey } from '@/lib/stats'
 import { PeriodNoteBox } from '@/components/PeriodNoteBox'
 import type { HeatmapEntry } from '@/lib/stats'
 import type { PeriodType } from '@/lib/types'
@@ -23,13 +23,6 @@ const CELL = 18
 const GAP = 3
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-function isoWeekMonday(date: Date): string {
-  const d = new Date(date)
-  const dow = d.getDay()
-  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
-  return d.toISOString().slice(0, 10)
-}
 
 function avgOrNull(ratings: number[]): number | null {
   return ratings.length === 0 ? null : ratings.reduce((a, b) => a + b, 0) / ratings.length
@@ -165,7 +158,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
   const renderWeekView = () => {
     const weekMap = new Map<string, { ratings: number[]; minutes: number }>()
     sessions.forEach((s) => {
-      const k = isoWeekMonday(new Date(s.started_at))
+      const k = weekStartKey(new Date(s.started_at))
       if (!weekMap.has(k)) weekMap.set(k, { ratings: [], minutes: 0 })
       const bucket = weekMap.get(k)!
       if (s.rating !== null) bucket.ratings.push(s.rating)
@@ -176,7 +169,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
     for (let i = 51; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i * 7)
-      weeks.push(isoWeekMonday(d))
+      weeks.push(weekStartKey(d))
     }
     const unique = [...new Set(weeks)].sort()
 

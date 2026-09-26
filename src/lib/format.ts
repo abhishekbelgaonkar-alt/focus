@@ -1,3 +1,5 @@
+import type { Weekday } from './types'
+
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes}m`
   const h = Math.floor(minutes / 60)
@@ -50,4 +52,11 @@ export function getSnippet(text: string, query: string, radius = 60): string {
   const start = Math.max(0, idx - radius)
   const end = Math.min(text.length, idx + query.length + radius)
   return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '')
+}
+
+const WEEKDAYS: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+/** Today's weekday in the same short form goal and template schedules use. */
+export function todayWeekday(): Weekday {
+  return WEEKDAYS[new Date().getDay()]
 }

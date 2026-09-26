@@ -14,18 +14,24 @@ export interface Goal {
   created_at: string
 }
 
-export interface Category {
-  id: string
-  user_id: string
+// One row of the get_goal_stats() RPC: a goal plus its completed-session totals.
+export interface GoalStat {
+  goal_id: string
   name: string
+  status: GoalStatus
+  color: string | null
+  schedule: Weekday[] | null
   created_at: string
+  session_count: number
+  total_minutes: number
+  avg_rating: number | null
+  last_session_at: string | null
 }
 
 export interface Session {
   id: string
   user_id: string
   goal_id: string | null
-  category_id: string | null
   session_name: string | null
   planned_duration_minutes: number
   actual_duration_minutes: number

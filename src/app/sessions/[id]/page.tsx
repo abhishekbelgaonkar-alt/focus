@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { getRatingLabel } from '@/lib/timer'
 import { formatDuration, formatDateTime } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
+import { formatTaskDuration } from '@/lib/tasks'
+import { TaskCheck } from '@/components/TaskCheck'
 
 interface TaskRow {
   id: string
@@ -23,7 +25,6 @@ interface SessionDetail {
   rating: number | null
   notes: string | null
   goals: { id: string; name: string; color: string | null } | null
-  categories: { name: string } | null
   session_tasks: TaskRow[]
 }
 
@@ -45,7 +46,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         rating,
         notes,
         goals(id, name, color),
-        categories(name),
         session_tasks(id, name, position, completed_at, duration_seconds, rating)
       `)
       .eq('id', sessionId)
@@ -60,7 +60,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   if (loading) return null
   if (!session) return <p className="p-6 font-sans text-text-muted">Session not found.</p>
 
-  const contextName = session.goals?.name ?? session.categories?.name ?? null
+  const contextName = session.goals?.name ?? null
   const contextColor = session.goals
     ? getGoalColor({ id: session.goals.id, color: session.goals.color })
     : null
@@ -105,15 +105,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {session.session_tasks && session.session_tasks.length > 0 && (() => {
-        const fmtDur = (sec: number | null) => {
-          if (sec === null) return null
-          if (sec < 60) return `${sec}s`
-          const m = Math.floor(sec / 60)
-          const s = sec % 60
-          return s === 0 ? `${m}m` : `${m}m ${s}s`
-        }
         const done = session.session_tasks.filter((t) => t.completed_at)
-        const unfinished = session.session_tasks.filter((t) => !t.completed_at)
         return (
           <div className="mb-8">
             <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-3">
@@ -131,26 +123,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     key={t.id}
                     className="flex items-center gap-3 py-2 border-b border-border-warm last:border-0"
                   >
-                    <span
-                      className={`w-4 h-4 rounded-full border-[1.5px] shrink-0 flex items-center justify-center ${
-                        isDone
-                          ? 'bg-check-green border-check-green'
-                          : 'border-border-warm bg-transparent'
-                      }`}
-                    >
-                      {isDone && (
-                        <svg width="8" height="8" viewBox="0 0 10 10" aria-hidden="true">
-                          <path
-                            d="M1.5 5.5 L4 8 L8.5 2.5"
-                            stroke="white"
-                            strokeWidth="1.75"
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    </span>
+                    <TaskCheck done={isDone} taskName={t.name} />
                     <span
                       className={`flex-1 font-sans text-sm ${
                         isDone ? 'text-text-muted line-through' : 'text-text-primary'
@@ -165,7 +138,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     )}
                     {isDone ? (
                       <span className="font-numbers text-xs text-text-muted shrink-0">
-                        {fmtDur(t.duration_seconds) ?? '-'}
+                        {t.duration_seconds === null ? '-' : formatTaskDuration(t.duration_seconds)}
                       </span>
                     ) : (
                       <span className="font-sans text-xs text-text-light shrink-0">unfinished</span>
@@ -174,12 +147,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 )
               })}
             </ul>
-            {/* Redundant summary; harmless if empty */}
-            {unfinished.length > 0 && done.length > 0 && (
-              <p className="font-sans text-xs text-text-muted mt-3">
-                {unfinished.length} left unfinished.
-              </p>
-            )}
           </div>
         )
       })()}

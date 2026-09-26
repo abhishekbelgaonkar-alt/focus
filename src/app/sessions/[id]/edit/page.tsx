@@ -11,7 +11,6 @@ interface EditableSession {
   rating: number | null
   notes: string | null
   goals: { name: string } | null
-  categories: { name: string } | null
 }
 
 export default function EditSessionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,8 +30,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
         session_name,
         rating,
         notes,
-        goals(name),
-        categories(name)
+        goals(name)
       `)
       .eq('id', sessionId)
       .single()
@@ -61,7 +59,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
   if (loading) return null
   if (!session) return <p className="p-6 font-sans text-text-muted">Session not found.</p>
 
-  const contextName = session.goals?.name ?? session.categories?.name ?? null
+  const contextName = session.goals?.name ?? null
 
   return (
     <RatingForm

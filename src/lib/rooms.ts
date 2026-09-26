@@ -10,6 +10,8 @@
   drift is never an issue. The client just diffs against Date.now().
 */
 
+import { formatDuration } from './format'
+
 const MS_PER_MIN = 60_000
 const MS_PER_SEC = 1_000
 
@@ -50,18 +52,6 @@ export function isInOvertime(
 }
 
 /**
- * Formats a duration in minutes into a compact human string.
- * Under an hour: "42m". Over: "1h 23m". Zero: "0m".
- */
-export function formatMinutesShort(minutes: number): string {
-  const abs = Math.abs(minutes)
-  if (abs < 60) return `${abs}m`
-  const h = Math.floor(abs / 60)
-  const m = abs % 60
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
-}
-
-/**
  * Formats a participant's status for display in the participant list.
  * Returns something like "25m in, 10m left" or "25m in, +5m over".
  */
@@ -72,11 +62,11 @@ export function formatParticipantStatus(
 ): string {
   const elapsed = elapsedMinutes(joinedAtIso, nowMs)
   const remaining = remainingMinutes(joinedAtIso, plannedDurationMinutes, nowMs)
-  const elapsedStr = formatMinutesShort(elapsed)
+  const elapsedStr = formatDuration(elapsed)
   if (remaining >= 0) {
-    return `${elapsedStr} in, ${formatMinutesShort(remaining)} left`
+    return `${elapsedStr} in, ${formatDuration(remaining)} left`
   }
-  return `${elapsedStr} in, +${formatMinutesShort(-remaining)} over`
+  return `${elapsedStr} in, +${formatDuration(-remaining)} over`
 }
 
 /**

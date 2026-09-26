@@ -5,7 +5,9 @@ import { loadSession, clearSession } from '@/lib/session-state'
 import { createClient } from '@/lib/supabase/client'
 import { RatingForm } from '@/components/RatingForm'
 import { AccountNudge } from '@/components/AccountNudge'
+import { ErrorToast } from '@/components/ErrorToast'
 import { formatDuration } from '@/lib/format'
+import { taskDurations, formatTaskDuration } from '@/lib/tasks'
 import { getRatingLabel } from '@/lib/timer'
 import type { InProgressSession } from '@/lib/session-state'
 import type { EndReason } from '@/lib/types'
@@ -66,20 +68,14 @@ export default function RatePage() {
 
   useEffect(() => {
     const s = loadSession()
-    if (!s) { router.replace('/setup'); return }
+    if (!s) { router.replace('/'); return }
     setSession(s)
 
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return
-      const [{ data: g }, { data: c }] = await Promise.all([
-        supabase.from('goals').select('id, name').eq('user_id', data.user.id).order('name'),
-        supabase.from('categories').select('id, name').eq('user_id', data.user.id).order('name'),
-      ])
-      const opts: GoalOption[] = [
-        ...((g ?? []) as { id: string; name: string }[]).map((x) => ({ ...x, type: 'goal' as const })),
-        ...((c ?? []) as { id: string; name: string }[]).map((x) => ({ ...x, type: 'category' as const })),
-      ]
-      setGoalOptions(opts)
+      const { data: g } = await supabase
+        .from('goals').select('id, name').eq('user_id', data.user.id).order('name')
+      setGoalOptions((g ?? []) as GoalOption[])
 
       // If this session is attached to a goal, load prior-session totals for
       // that goal so we can render the accumulated context on the Rate page.
@@ -205,9 +201,8 @@ export default function RatePage() {
     }
 
     let goalId = session.goalId ?? form.existingGoalId
-    const categoryId = session.categoryId ?? form.existingCategoryId
 
-    if (!goalId && !categoryId && form.goalText.trim()) {
+    if (!goalId && form.goalText.trim()) {
       const { data: newGoal, error: goalErr } = await supabase
         .from('goals')
         .insert({ user_id: user.id, name: form.goalText.trim() })
@@ -248,7 +243,6 @@ export default function RatePage() {
     const sessionPayload = {
       user_id: user.id,
       goal_id: goalId,
-      category_id: categoryId,
       session_name: finalSessionName,
       planned_duration_minutes: session.plannedDurationMinutes,
       actual_duration_minutes: finalActual,
@@ -313,16 +307,7 @@ export default function RatePage() {
 
     // Persist sub-tasks entered at setup + their check-off durations.
     if (session.tasks.length > 0) {
-      const completedSorted = [...session.tasks]
-        .filter((t) => t.completedAt !== null && t.elapsedSecondsAtCompletion !== null)
-        .sort((a, b) => (a.elapsedSecondsAtCompletion ?? 0) - (b.elapsedSecondsAtCompletion ?? 0))
-      const durationById = new Map<string, number>()
-      let prev = 0
-      for (const t of completedSorted) {
-        durationById.set(t.id, Math.max(0, (t.elapsedSecondsAtCompletion ?? 0) - prev))
-        prev = t.elapsedSecondsAtCompletion ?? prev
-      }
-
+      const durationById = taskDurations(session.tasks)
       await supabase.from('session_tasks').insert(
         session.tasks.map((t) => ({
           session_id: savedId,
@@ -373,27 +358,7 @@ export default function RatePage() {
 
   if (!session) return null
 
-  // Format a task's recorded duration for display next to its name.
-  const fmtTaskDur = (sec: number | null): string | null => {
-    if (sec === null) return null
-    if (sec < 60) return `${sec}s`
-    const m = Math.floor(sec / 60)
-    const s = sec % 60
-    return s === 0 ? `${m}m` : `${m}m ${s}s`
-  }
-  // Per-task duration map (same math as timer + session-detail views).
-  const taskDurationById = (() => {
-    const map = new Map<string, number>()
-    const completedSorted = [...session.tasks]
-      .filter((t) => t.completedAt !== null && t.elapsedSecondsAtCompletion !== null)
-      .sort((a, b) => (a.elapsedSecondsAtCompletion ?? 0) - (b.elapsedSecondsAtCompletion ?? 0))
-    let prev = 0
-    for (const t of completedSorted) {
-      map.set(t.id, Math.max(0, (t.elapsedSecondsAtCompletion ?? 0) - prev))
-      prev = t.elapsedSecondsAtCompletion ?? prev
-    }
-    return map
-  })()
+  const taskDurationById = taskDurations(session.tasks)
 
   const header = (
     <div>
@@ -534,7 +499,8 @@ export default function RatePage() {
           <ul>
             {session.tasks.map((t) => {
               const done = t.completedAt !== null
-              const dur = fmtTaskDur(taskDurationById.get(t.id) ?? null)
+              const sec = taskDurationById.get(t.id)
+              const dur = sec === undefined ? null : formatTaskDuration(sec)
               const current = taskRatings.get(t.id) ?? null
               return (
                 <li
@@ -594,7 +560,7 @@ export default function RatePage() {
         focusText={session.setupFocusText}
         onSave={handleSave}
         saving={saving}
-        showGoalPrompt={!session.goalId && !session.categoryId}
+        showGoalPrompt={!session.goalId}
         goalOptions={goalOptions}
         header={header}
         saveDisabled={session.isExpired && branchReason === null}
@@ -614,9 +580,7 @@ export default function RatePage() {
         }
       />
       {errorMsg && (
-        <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto p-3 rounded-xl border border-red-300 bg-red-50 text-red-900 text-sm font-sans z-50">
-          {errorMsg}
-        </div>
+        <ErrorToast message={errorMsg} />
       )}
       {savedCount !== null && (
         <AccountNudge
