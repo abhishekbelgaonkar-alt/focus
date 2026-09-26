@@ -9,9 +9,14 @@ import {
   getMonthGridDays,
 } from '@/lib/stats'
 
-const today = new Date().toISOString().slice(0, 10)
-const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
-const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10)
+const daysAgo = (n: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString()
+}
+const today = daysAgo(0)
+const yesterday = daysAgo(1)
+const twoDaysAgo = daysAgo(2)
 
 describe('calcDayStreak', () => {
   it('returns 0 when no sessions', () => {
@@ -28,6 +33,10 @@ describe('calcDayStreak', () => {
 
   it('breaks at a gap', () => {
     expect(calcDayStreak([twoDaysAgo, today])).toBe(1)
+  })
+
+  it('counts back from yesterday when today has no session yet', () => {
+    expect(calcDayStreak([twoDaysAgo, yesterday])).toBe(2)
   })
 
   it('deduplicates dates (multiple sessions same day)', () => {

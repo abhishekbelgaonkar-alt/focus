@@ -30,11 +30,46 @@ export function saveSession(s: InProgressSession): void {
 
 export function loadSession(): InProgressSession | null {
   if (typeof window === 'undefined') return null
-  const raw = sessionStorage.getItem(KEY)
-  return raw ? (JSON.parse(raw) as InProgressSession) : null
+  try {
+    const raw = sessionStorage.getItem(KEY)
+    return raw ? (JSON.parse(raw) as InProgressSession) : null
+  } catch {
+    return null   // unreadable or corrupt: treat as no session in progress
+  }
 }
 
 export function clearSession(): void {
   if (typeof window === 'undefined') return
   sessionStorage.removeItem(KEY)
+}
+
+// The solo timer's clock (pauses included), kept separately from the session
+// so a resume or a page reload picks up exactly where it was.
+export interface TimerState {
+  startedAt: number
+  plannedMs: number
+  pausedAt: number | null
+  totalPausedMs: number
+}
+
+const TIMER_KEY = 'focus_timer_state'
+
+export function loadTimerState(): TimerState | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(TIMER_KEY)
+    return raw ? (JSON.parse(raw) as TimerState) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveTimerState(s: TimerState): void {
+  if (typeof window === 'undefined') return
+  sessionStorage.setItem(TIMER_KEY, JSON.stringify(s))
+}
+
+export function clearTimerState(): void {
+  if (typeof window === 'undefined') return
+  sessionStorage.removeItem(TIMER_KEY)
 }

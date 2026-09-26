@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatDuration, timeAgo } from '@/lib/format'
 import { getGoalColor, GOAL_PALETTE } from '@/lib/goal-color'
 import { SearchBar } from '@/components/SearchBar'
+import { createGoal } from '@/lib/goals'
 import type { GoalStat } from '@/lib/types'
 
 
@@ -58,18 +59,7 @@ export default function AllGoalsPage() {
   }, [goals, filter, sort])
 
   const handleCreate = async () => {
-    const name = newName.trim()
-    if (!name) return
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData?.user) return
-    // Assign a color from the palette based on the current goal count so
-    // consecutive new goals cycle through colors.
-    const color = GOAL_PALETTE[goals.length % GOAL_PALETTE.length]
-    await supabase.from('goals').insert({
-      user_id: userData.user.id,
-      name,
-      color,
-    })
+    if (!(await createGoal(supabase, newName))) return
     setNewName('')
     setCreating(false)
     await load()

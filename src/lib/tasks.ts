@@ -31,3 +31,26 @@ export function formatTaskDuration(seconds: number): string {
   const s = seconds % 60
   return s === 0 ? `${m}m` : `${m}m ${s}s`
 }
+
+interface SessionTask extends CheckedTask {
+  name: string
+  position: number
+}
+
+/** Task rows in the shape the save_session RPC takes. */
+export function toTaskRows(tasks: SessionTask[], ratings?: Map<string, number>) {
+  const durations = taskDurations(tasks)
+  return tasks.map((t) => ({
+    name: t.name,
+    position: t.position,
+    completed_at: t.completedAt,
+    duration_seconds: durations.get(t.id) ?? null,
+    rating: ratings?.get(t.id) ?? null,
+  }))
+}
+
+/** A default session name from its tasks, in entry order, when none was typed. */
+export function nameFromTasks(tasks: SessionTask[]): string | null {
+  if (tasks.length === 0) return null
+  return [...tasks].sort((a, b) => a.position - b.position).map((t) => t.name).join(', ')
+}

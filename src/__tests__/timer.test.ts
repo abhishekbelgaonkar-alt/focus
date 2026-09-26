@@ -98,3 +98,15 @@ describe('getNotePlaceholder', () => {
     )
   })
 })
+
+describe('isTimerExpired with a grace period', () => {
+  it('is not expired just after zero when within the grace period', () => {
+    const startedAt = Date.now() - 26 * 60 * 1000
+    expect(isTimerExpired(startedAt, 25 * 60 * 1000, 0, 2 * 60 * 1000)).toBe(false)
+  })
+
+  it('is expired once past the grace period', () => {
+    const startedAt = Date.now() - 28 * 60 * 1000
+    expect(isTimerExpired(startedAt, 25 * 60 * 1000, 0, 2 * 60 * 1000)).toBe(true)
+  })
+})

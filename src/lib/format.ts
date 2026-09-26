@@ -60,3 +60,11 @@ const WEEKDAYS: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 export function todayWeekday(): Weekday {
   return WEEKDAYS[new Date().getDay()]
 }
+
+/** A date's calendar day in the user's timezone, as YYYY-MM-DD. */
+export function localDateKey(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}

@@ -43,6 +43,7 @@ export default function ProfilePage() {
             goals(name)
           `)
           .eq('user_id', data.user.id)
+          .eq('status', 'completed')
           .order('started_at', { ascending: true })
 
         setSessions((s ?? []) as unknown as FullSession[])

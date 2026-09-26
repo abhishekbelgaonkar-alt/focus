@@ -8,9 +8,8 @@ import { createClient } from '@/lib/supabase/client'
   We look up who the invite belongs to, show their handle, and offer to
   send them a friend request.
 
-  Anonymous auth applies transparently: if the visitor has never been to
-  Tokiroom before, AuthProvider auto-creates an anonymous account for them
-  before this page runs its RPC call.
+  Anonymous auth applies transparently: AuthProvider renders this page only
+  once the visitor has a session, creating an anonymous one if needed.
 */
 
 type Status = 'loading' | 'ready' | 'not_found' | 'self' | 'sent' | 'already_friends' | 'already_requested' | 'error'
@@ -30,36 +29,12 @@ export default function InvitePage({ params }: Props) {
 
   useEffect(() => {
     (async () => {
-      // Look up the owner of this invite so we can show their handle.
-      // Note: read policy on friend_invites lets any signed-in user read by
-      // short_code, so this works even when the visitor doesn't know the
-      // owner's user_id yet.
-      const { data: invite } = await supabase
-        .from('friend_invites')
-        .select('user_id')
-        .eq('short_code', shortCode)
-        .maybeSingle()
-
-      if (!invite) {
-        setStatus('not_found')
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('handle')
-        .eq('user_id', invite.user_id)
-        .maybeSingle()
-
-      setOwnerHandle(profile?.handle ?? 'someone')
-
-      // Self-invite guard: if the visitor is the invite owner, no request.
-      const { data: userData } = await supabase.auth.getUser()
-      if (userData?.user?.id === invite.user_id) {
-        setStatus('self')
-      } else {
-        setStatus('ready')
-      }
+      const { data, error } = await supabase.rpc('get_friend_invite', { p_code: shortCode })
+      if (error) { setStatus('error'); return }
+      const invite = data as { status: 'not_found' | 'self' | 'ok'; handle?: string }
+      if (invite.status === 'not_found') { setStatus('not_found'); return }
+      setOwnerHandle(invite.handle ?? 'someone')
+      setStatus(invite.status === 'self' ? 'self' : 'ready')
     })()
   }, [shortCode, supabase])
 

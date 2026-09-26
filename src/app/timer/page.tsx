@@ -1,35 +1,22 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { loadSession, saveSession, clearSession } from '@/lib/session-state'
-import { getRemainingMs, formatTime, isTimerExpired } from '@/lib/timer'
+import {
+  loadSession,
+  saveSession,
+  clearSession,
+  loadTimerState,
+  saveTimerState,
+  clearTimerState,
+  type TimerState,
+} from '@/lib/session-state'
+import { getRemainingMs, formatTime, isTimerExpired, EXPIRY_GRACE_MS } from '@/lib/timer'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration } from '@/lib/format'
-import { taskDurations, formatTaskDuration } from '@/lib/tasks'
+import { taskDurations, formatTaskDuration, toTaskRows, nameFromTasks } from '@/lib/tasks'
+import { ErrorToast } from '@/components/ErrorToast'
 import { TaskCheck } from '@/components/TaskCheck'
 import type { InProgressSession } from '@/lib/session-state'
-
-interface TimerState {
-  startedAt: number
-  plannedMs: number
-  pausedAt: number | null
-  totalPausedMs: number
-}
-
-const TIMER_KEY = 'focus_timer_state'
-
-function loadTimerState(): TimerState | null {
-  const raw = sessionStorage.getItem(TIMER_KEY)
-  return raw ? (JSON.parse(raw) as TimerState) : null
-}
-
-function saveTimerState(s: TimerState): void {
-  sessionStorage.setItem(TIMER_KEY, JSON.stringify(s))
-}
-
-function clearTimerState(): void {
-  sessionStorage.removeItem(TIMER_KEY)
-}
 
 export default function TimerPage() {
   const router = useRouter()
@@ -38,6 +25,7 @@ export default function TimerPage() {
   const [timer, setTimer] = useState<TimerState | null>(null)
   const [displayMs, setDisplayMs] = useState(0)
   const [savingLater, setSavingLater] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   // Total minutes already saved to Supabase from today's completed sessions.
   // Combines with mid-session elapsed to show a running "time banked today."
   const [todayBankedMinutes, setTodayBankedMinutes] = useState(0)
@@ -81,19 +69,23 @@ export default function TimerPage() {
     })()
   }, [])
 
-  // Ref-based rAF loop. Using a ref sidesteps the "tick accessed before it
-  // is declared" issue you get when a useCallback recursively refers to
-  // itself, and keeps deps empty for a stable subscription.
+  // rAF loop reading the latest timer through a ref. It only sets state
+  // when the displayed second changes, so the page re-renders once a second
+  // rather than every frame.
+  const timerRef = useRef<TimerState | null>(null)
+  useEffect(() => { timerRef.current = timer }, [timer])
   useEffect(() => {
+    let lastSecond = -1
     const loop = () => {
-      setTimer((prev) => {
-        if (!prev) return prev
-        if (prev.pausedAt === null) {
-          const remaining = getRemainingMs(prev.startedAt, prev.plannedMs, null, prev.totalPausedMs)
+      const t = timerRef.current
+      if (t && t.pausedAt === null) {
+        const remaining = getRemainingMs(t.startedAt, t.plannedMs, null, t.totalPausedMs)
+        const second = Math.ceil(remaining / 1000)
+        if (second !== lastSecond) {
+          lastSecond = second
           setDisplayMs(remaining)
         }
-        return prev
-      })
+      }
       rafRef.current = requestAnimationFrame(loop)
     }
     rafRef.current = requestAnimationFrame(loop)
@@ -141,71 +133,38 @@ export default function TimerPage() {
     saveTimerState(nextTimer)
   }
 
-  // Persist the session as in_progress and clear browser state so the user
-  // can resume from any device. If a DB row already exists (resumed session),
-  // UPDATE it; otherwise INSERT a new row with status='in_progress'.
+  // Persist the session as in_progress so it can be resumed from any
+  // device. Browser state is cleared only once the save has succeeded.
   const handleSaveForLater = async () => {
     if (!session || !timer || savingLater) return
     setSavingLater(true)
+    setSaveError(null)
 
     const now = timer.pausedAt ?? Date.now()
-    const elapsedSec = Math.max(
-      0,
-      Math.round((now - timer.startedAt - timer.totalPausedMs) / 1000)
-    )
+    const elapsedSec = Math.max(0, Math.round((now - timer.startedAt - timer.totalPausedMs) / 1000))
 
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData?.user) { setSavingLater(false); return }
-
-    let sessionRowId: string | null = session.existingSessionId
-
-    // Auto-derive a name from tasks if the user gave none — matches /rate.
-    const derivedName =
-      session.setupFocusText ??
-      (session.tasks.length > 0
-        ? session.tasks.slice().sort((a, b) => a.position - b.position).map((t) => t.name).join(', ')
-        : null)
-
-    const rowPayload = {
-      user_id: userData.user.id,
-      goal_id: session.goalId,
-      session_name: derivedName,
-      planned_duration_minutes: session.plannedDurationMinutes,
-      actual_duration_minutes: null,
-      started_at: session.startedAt,
-      ended_at: null,
-      rating: null,
-      notes: null,
-      end_reason: null,
-      status: 'in_progress',
-      elapsed_seconds: elapsedSec,
-    }
-
-    if (sessionRowId) {
-      await supabase.from('sessions').update(rowPayload).eq('id', sessionRowId)
-    } else {
-      const { data: saved } = await supabase
-        .from('sessions')
-        .insert(rowPayload)
-        .select('id')
-        .single()
-      sessionRowId = saved?.id ?? null
-    }
-
-    // Replace task rows so the current check-off state persists.
-    if (sessionRowId) {
-      await supabase.from('session_tasks').delete().eq('session_id', sessionRowId)
-      if (session.tasks.length > 0) {
-        await supabase.from('session_tasks').insert(
-          session.tasks.map((t) => ({
-            session_id: sessionRowId,
-            name: t.name,
-            position: t.position,
-            completed_at: t.completedAt,
-            duration_seconds: null,   // final duration only computed on conclude
-          }))
-        )
-      }
+    const { error } = await supabase.rpc('save_session', {
+      p_session_id: session.existingSessionId,
+      p_status: 'in_progress',
+      p_goal_id: session.goalId,
+      p_new_goal_name: null,
+      p_session_name: session.setupFocusText ?? nameFromTasks(session.tasks),
+      p_planned_minutes: session.plannedDurationMinutes,
+      p_actual_minutes: null,
+      p_elapsed_seconds: elapsedSec,
+      p_started_at: session.startedAt,
+      p_rating: null,
+      p_notes: null,
+      p_end_reason: null,
+      p_room_id: null,
+      p_tasks: toTaskRows(session.tasks),
+      p_save_as_template: false,
+    })
+    if (error) {
+      console.error('[timer] save for later failed', error)
+      setSaveError("Couldn't save. Your timer is still running; try again in a moment.")
+      setSavingLater(false)
+      return
     }
 
     clearSession()
@@ -246,7 +205,7 @@ export default function TimerPage() {
 
   const handleDone = () => {
     if (!timer || !session) return
-    const expired = isTimerExpired(timer.startedAt, timer.plannedMs, timer.totalPausedMs)
+    const expired = isTimerExpired(timer.startedAt, timer.plannedMs, timer.totalPausedMs, EXPIRY_GRACE_MS)
 
     // Rounded elapsed minutes (paused time excluded), floor 1. If Done was hit
     // AFTER the timer expired, we leave actualDurationMinutes null and let the
@@ -302,7 +261,7 @@ export default function TimerPage() {
           const isTall = i % 15 === 0
           const isMedium = !isTall && i % 5 === 0
           const len = isTall ? 14 : isMedium ? 9 : 5
-          const stroke = isTall || isMedium ? '#b08c6a' : '#c9b79c'
+          const stroke = isTall || isMedium ? 'var(--color-text-muted)' : 'var(--color-text-light)'
           const width = isTall ? 1.5 : 1
           ticks.push({ angleDeg, len, stroke, width })
         }
@@ -326,7 +285,7 @@ export default function TimerPage() {
                   y1={CENTER - R_OUTER}
                   x2={CENTER}
                   y2={CENTER - R_OUTER + t.len}
-                  stroke={t.stroke}
+                  style={{ stroke: t.stroke }}
                   strokeWidth={t.width}
                   transform={`rotate(${t.angleDeg} ${CENTER} ${CENTER})`}
                 />
@@ -338,9 +297,12 @@ export default function TimerPage() {
                 width={2}
                 height={22}
                 rx={1}
-                fill="#e8905a"
                 transform={`rotate(${markerAngle} ${CENTER} ${CENTER})`}
-                style={{ transition: isPaused ? 'none' : 'transform 100ms linear' }}
+                style={{
+                  fill: 'var(--color-coral-soft)',
+                  // Updates arrive once a second; glide between them.
+                  transition: isPaused ? 'none' : 'transform 1s linear',
+                }}
               />
             </svg>
 
@@ -446,6 +408,7 @@ export default function TimerPage() {
           </div>
         )
       })()}
+      {saveError && <ErrorToast message={saveError} onDismiss={() => setSaveError(null)} />}
     </main>
   )
 }

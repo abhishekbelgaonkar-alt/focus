@@ -9,16 +9,14 @@ import type { FriendRequest, FriendView, UserProfile } from '@/lib/types'
   Contains three sections, top to bottom:
 
     1. Requests (only rendered when there are pending inbound requests)
-    2. Your friends (with a small dot showing who's currently focusing)
+    2. Your friends
     3. Your invite link (copyable, regeneratable)
 
   Plus a subtle line for anonymous users nudging them to attach an email so
   their friends persist across devices.
 
   Data-loading pattern: the dropdown is a passive UI. It refetches whenever
-  it opens, and it does not poll continuously. Active-friend status refreshes
-  every 30s only while the dropdown is open, since it isn't information the
-  user needs while doing anything else in the app.
+  it opens and doesn't poll.
 */
 
 interface FriendsDropdownProps {
@@ -44,10 +42,12 @@ export function FriendsDropdown({ open, onClose, isAnonymous }: FriendsDropdownP
     if (!uid) { setLoading(false); return }
 
     const [reqRes, friendsRes, inviteRes] = await Promise.all([
-      // Inbound requests, joined with the sender's profile for display.
+      // Inbound requests. Sender handles are fetched separately below:
+      // friend_requests and user_profiles both reference auth.users, with
+      // no foreign key between them for PostgREST to embed through.
       supabase
         .from('friend_requests')
-        .select('id, from_user_id, to_user_id, created_at, from_profile:user_profiles!from_user_id(user_id, handle, created_at)')
+        .select('id, from_user_id, to_user_id, created_at')
         .eq('to_user_id', uid),
       // All friendships this user is part of. Handles + active status filled below.
       supabase
@@ -62,43 +62,34 @@ export function FriendsDropdown({ open, onClose, isAnonymous }: FriendsDropdownP
         .maybeSingle(),
     ])
 
-    setRequests((reqRes.data ?? []) as unknown as FriendRequest[])
+    const inbound = (reqRes.data ?? []) as FriendRequest[]
+    if (inbound.length > 0) {
+      const { data: senders } = await supabase
+        .from('user_profiles')
+        .select('user_id, handle, created_at')
+        .in('user_id', inbound.map((r) => r.from_user_id))
+      const senderById = new Map(((senders ?? []) as UserProfile[]).map((p) => [p.user_id, p]))
+      setRequests(inbound.map((r) => ({ ...r, from_profile: senderById.get(r.from_user_id) })))
+    } else {
+      setRequests([])
+    }
 
-    // For each friendship, resolve the *other* user's handle + active status.
+    // For each friendship, resolve the *other* user's handle.
     const otherIds = ((friendsRes.data ?? []) as { user_a_id: string; user_b_id: string }[])
       .map((f) => (f.user_a_id === uid ? f.user_b_id : f.user_a_id))
 
     if (otherIds.length > 0) {
-      const [profilesRes, activeRes] = await Promise.all([
-        supabase
-          .from('user_profiles')
-          .select('user_id, handle')
-          .in('user_id', otherIds),
-        supabase
-          .from('sessions')
-          .select('user_id')
-          .in('user_id', otherIds)
-          .is('ended_at', null),
-      ])
-
-      const handleByUser = new Map<string, string>()
-      for (const p of (profilesRes.data ?? []) as UserProfile[]) {
-        handleByUser.set(p.user_id, p.handle)
-      }
-      const activeSet = new Set<string>(
-        ((activeRes.data ?? []) as { user_id: string }[]).map((s) => s.user_id)
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, handle')
+        .in('user_id', otherIds)
+      const handleByUser = new Map(
+        ((profiles ?? []) as UserProfile[]).map((p) => [p.user_id, p.handle])
       )
-
       setFriends(
-        otherIds.map((id) => ({
-          user_id: id,
-          handle: handleByUser.get(id) ?? 'unknown',
-          is_focusing: activeSet.has(id),
-        })).sort((a, b) => {
-          // Focusing friends surface at the top; then alphabetical.
-          if (a.is_focusing !== b.is_focusing) return a.is_focusing ? -1 : 1
-          return a.handle.localeCompare(b.handle)
-        })
+        otherIds
+          .map((id) => ({ user_id: id, handle: handleByUser.get(id) ?? 'unknown' }))
+          .sort((a, b) => a.handle.localeCompare(b.handle))
       )
     } else {
       setFriends([])
@@ -108,12 +99,8 @@ export function FriendsDropdown({ open, onClose, isAnonymous }: FriendsDropdownP
     setLoading(false)
   }, [supabase])
 
-  // Fetch on open + poll active status every 30s while open.
   useEffect(() => {
-    if (!open) return
-    load()
-    const interval = window.setInterval(load, 30_000)
-    return () => window.clearInterval(interval)
+    if (open) load()
   }, [open, load])
 
   useDismiss(containerRef, open, onClose)
@@ -211,23 +198,9 @@ export function FriendsDropdown({ open, onClose, isAnonymous }: FriendsDropdownP
               <div className="flex flex-col gap-1.5">
                 {friends.map((f) => (
                   <div key={f.user_id} className="flex items-center gap-2">
-                    <span
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{
-                        backgroundColor: f.is_focusing
-                          ? 'var(--color-check-green)'
-                          : 'var(--color-border-warm)',
-                      }}
-                      aria-hidden="true"
-                    />
                     <span className="font-sans text-sm text-text-primary flex-1 truncate">
                       {f.handle}
                     </span>
-                    {f.is_focusing && (
-                      <span className="font-sans text-xs text-text-light">
-                        focusing
-                      </span>
-                    )}
                     <button
                       onClick={() => unfriend(f.user_id)}
                       className="font-sans text-xs text-text-light"

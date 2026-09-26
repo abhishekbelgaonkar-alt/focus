@@ -7,6 +7,8 @@ import {
   formatParticipantStatus,
   participantTargetEndIso,
   effectiveDurationForTarget,
+  plannedMinutesFor,
+  togetherTime,
 } from '../lib/rooms'
 
 /*
@@ -129,5 +131,49 @@ describe('effectiveDurationForTarget', () => {
     // target is 12:35. Syncing should bump my effective duration to 35.
     const laterTarget = new Date(joinedMs + 35 * 60_000).toISOString()
     expect(effectiveDurationForTarget(JOINED, laterTarget)).toBe(35)
+  })
+})
+
+describe('plannedMinutesFor', () => {
+  it('uses the room duration without a personal target', () => {
+    expect(plannedMinutesFor(JOINED, 25, null)).toBe(25)
+  })
+
+  it('uses the personal target when set', () => {
+    const target = new Date(joinedMs + 40 * 60_000).toISOString()
+    expect(plannedMinutesFor(JOINED, 25, target)).toBe(40)
+  })
+})
+
+describe('togetherTime', () => {
+  const min = (m: number) => joinedMs + m * 60_000
+  const mine = { startMs: min(0), endMs: min(60) }
+
+  it('counts only time that overlaps mine', () => {
+    const r = togetherTime(mine, [{ startMs: min(-30), endMs: min(20) }])
+    expect(r.minutes).toBe(20)
+    expect(r.overlapped).toEqual([true])
+  })
+
+  it('does not double-count people who were there at the same time', () => {
+    const r = togetherTime(mine, [
+      { startMs: min(10), endMs: min(30) },
+      { startMs: min(20), endMs: min(40) },
+    ])
+    expect(r.minutes).toBe(30)
+  })
+
+  it('adds up separate stretches', () => {
+    const r = togetherTime(mine, [
+      { startMs: min(0), endMs: min(10) },
+      { startMs: min(50), endMs: min(70) },
+    ])
+    expect(r.minutes).toBe(20)
+  })
+
+  it('excludes someone who left before I arrived', () => {
+    const r = togetherTime(mine, [{ startMs: min(-40), endMs: min(-5) }])
+    expect(r.minutes).toBe(0)
+    expect(r.overlapped).toEqual([false])
   })
 })

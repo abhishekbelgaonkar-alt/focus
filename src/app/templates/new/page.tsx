@@ -47,7 +47,7 @@ export default function NewTemplatePage() {
     setSaving(true)
     const { data: userData } = await supabase.auth.getUser()
     if (!userData?.user) { setSaving(false); return }
-    await supabase.from('session_templates').insert({
+    const { error } = await supabase.from('session_templates').insert({
       user_id: userData.user.id,
       goal_id: goalId,
       name: name.trim(),
@@ -55,6 +55,11 @@ export default function NewTemplatePage() {
       tasks: tasks.map((n) => ({ name: n })),
       schedule: schedule.length > 0 ? schedule : null,
     })
+    if (error) {
+      console.error('[templates] insert failed', error)
+      setSaving(false)
+      return
+    }
     router.push('/')
   }
 

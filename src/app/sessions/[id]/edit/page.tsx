@@ -63,7 +63,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
 
   return (
     <RatingForm
-      initialRating={session.rating ?? 3.0}
+      initialRating={session.rating}
       initialNotes={session.notes ?? ''}
       initialSessionName={session.session_name ?? ''}
       focusText={contextName}

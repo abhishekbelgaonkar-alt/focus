@@ -7,7 +7,8 @@ import { RatingForm } from '@/components/RatingForm'
 import { AccountNudge } from '@/components/AccountNudge'
 import { ErrorToast } from '@/components/ErrorToast'
 import { formatDuration } from '@/lib/format'
-import { taskDurations, formatTaskDuration } from '@/lib/tasks'
+import { taskDurations, formatTaskDuration, toTaskRows, nameFromTasks } from '@/lib/tasks'
+import { togetherTime } from '@/lib/rooms'
 import { getRatingLabel } from '@/lib/timer'
 import type { InProgressSession } from '@/lib/session-state'
 import type { EndReason } from '@/lib/types'
@@ -96,28 +97,31 @@ export default function RatePage() {
         }
       }
 
-      // Room context: fetch co-participants for the "focused with" header
-      // and the per-person add-as-friend prompts. Handles come from
-      // user_profiles; friend status is computed against the current user.
+      // Room context: who you actually overlapped with, and for how long,
+      // plus an add-as-friend prompt for each of them.
       if (s.roomId) {
         const myId = data.user.id
         const { data: partRows } = await supabase
           .from('room_participants')
           .select('user_id, joined_at, left_at')
           .eq('room_id', s.roomId)
-        const rows = (partRows ?? []) as Array<{
+        const others = ((partRows ?? []) as Array<{
           user_id: string
           joined_at: string
           left_at: string | null
-        }>
+        }>).filter((r) => r.user_id !== myId)
 
-        // Together-time proxy: overlap between this user's join window and
-        // each other participant. For the header we sum the smallest useful
-        // signal — the current user's session length, capped by the room's
-        // active time. Simplest correct value: actualDurationMinutes.
-        setSharedMinutes(s.actualDurationMinutes ?? s.plannedDurationMinutes)
+        const now = Date.now()
+        const { minutes, overlapped } = togetherTime(
+          { startMs: new Date(s.startedAt).getTime(), endMs: now },
+          others.map((r) => ({
+            startMs: new Date(r.joined_at).getTime(),
+            endMs: r.left_at ? new Date(r.left_at).getTime() : now,
+          }))
+        )
+        const otherIds = others.filter((_, i) => overlapped[i]).map((r) => r.user_id)
+        setSharedMinutes(minutes)
 
-        const otherIds = rows.map((r) => r.user_id).filter((id) => id !== myId)
         if (otherIds.length > 0) {
           const [{ data: profiles }, { data: friendships }, { data: requests }] = await Promise.all([
             supabase.from('user_profiles').select('user_id, handle').in('user_id', otherIds),
@@ -158,12 +162,8 @@ export default function RatePage() {
   }, [])
 
   const sendFriendRequest = async (toUserId: string) => {
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData.user) return
-    const { error } = await supabase
-      .from('friend_requests')
-      .insert({ from_user_id: userData.user.id, to_user_id: toUserId })
-    if (!error) {
+    const { data, error } = await supabase.rpc('send_friend_request_to_roommate', { p_to: toUserId })
+    if (!error && (data === 'sent' || data === 'already_requested')) {
       setRoomMates((prev) =>
         prev.map((m) => (m.userId === toUserId ? { ...m, friendStatus: 'pending' } : m))
       )
@@ -189,167 +189,50 @@ export default function RatePage() {
     setSaving(true)
     setErrorMsg(null)
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser()
-    const user = userData?.user
-    if (userErr || !user) {
-      console.error('[save] no authenticated user', userErr)
-      setErrorMsg(
-        `Not signed in. ${userErr?.message ?? 'Anonymous sign-in may not be enabled in Supabase, or the network call failed.'}`
-      )
+    // If any tasks were rated, the session's rating is their average
+    // (one decimal). Otherwise the form slider's value.
+    const finalRating =
+      aggregateRating !== null ? Math.round(aggregateRating * 10) / 10 : form.rating
+
+    // One call saves the session, its tasks, a new goal, the quick start,
+    // and the room link together, or none of them.
+    const { error } = await supabase.rpc('save_session', {
+      p_session_id: session.existingSessionId,
+      p_status: 'completed',
+      p_goal_id: session.goalId ?? form.existingGoalId,
+      p_new_goal_name: form.goalText,
+      p_session_name: form.sessionName.trim() || nameFromTasks(session.tasks),
+      p_planned_minutes: session.plannedDurationMinutes,
+      p_actual_minutes: resolveActualMinutes(),
+      p_elapsed_seconds: null,
+      p_started_at: session.startedAt,
+      p_rating: finalRating,
+      p_notes: form.notes.trim(),
+      p_end_reason: session.isExpired ? branchReason : session.endReason,
+      p_room_id: session.roomId,
+      p_tasks: toTaskRows(session.tasks, taskRatings),
+      p_save_as_template: saveAsTemplate,
+    })
+    if (error) {
+      console.error('[save] save_session failed', error)
+      setErrorMsg("Couldn't save your session. Check your connection and try again.")
       setSaving(false)
       return
     }
 
-    let goalId = session.goalId ?? form.existingGoalId
-
-    if (!goalId && form.goalText.trim()) {
-      const { data: newGoal, error: goalErr } = await supabase
-        .from('goals')
-        .insert({ user_id: user.id, name: form.goalText.trim() })
-        .select()
-        .single()
-      if (goalErr) {
-        console.error('[save] goal insert failed', goalErr)
-        setErrorMsg(`Couldn't create goal: ${goalErr.message}`)
-        setSaving(false)
-        return
-      }
-      goalId = newGoal?.id ?? null
-    }
-
-    const finalActual = resolveActualMinutes()
-    const finalEndReason = session.isExpired ? branchReason : session.endReason
-
-    // If the user didn't name the session but added tasks, use the task names
-    // as the session's default title (comma-joined, in entry order).
-    const typedName = form.sessionName.trim()
-    const finalSessionName =
-      typedName ||
-      (session.tasks.length > 0
-        ? session.tasks
-            .slice()
-            .sort((a, b) => a.position - b.position)
-            .map((t) => t.name)
-            .join(', ')
-        : null)
-
-    // If any tasks were rated, the session's rating is the average across
-    // them (rounded to one decimal). Otherwise fall back to the form slider.
-    const finalRating =
-      aggregateRating !== null
-        ? Math.round(aggregateRating * 10) / 10
-        : form.rating
-
-    const sessionPayload = {
-      user_id: user.id,
-      goal_id: goalId,
-      session_name: finalSessionName,
-      planned_duration_minutes: session.plannedDurationMinutes,
-      actual_duration_minutes: finalActual,
-      started_at: session.startedAt,
-      ended_at: new Date().toISOString(),
-      rating: finalRating,
-      notes: form.notes.trim() || null,
-      end_reason: finalEndReason,
-      status: 'completed',
-      elapsed_seconds: null,
-      room_id: session.roomId,
-    }
-
-    // If this session was previously saved-for-later, UPDATE that row instead
-    // of inserting a new one so the row's id (and any references) stay stable.
-    let savedId: string | null
-    if (session.existingSessionId) {
-      const { data: updated, error: updErr } = await supabase
-        .from('sessions')
-        .update(sessionPayload)
-        .eq('id', session.existingSessionId)
-        .select('id')
-        .single()
-      if (updErr || !updated) {
-        console.error('[save] session update failed', updErr)
-        setErrorMsg(`Couldn't save session: ${updErr?.message ?? 'unknown error'}`)
-        setSaving(false)
-        return
-      }
-      savedId = updated.id
-    } else {
-      const { data: inserted, error: insErr } = await supabase
-        .from('sessions')
-        .insert(sessionPayload)
-        .select('id')
-        .single()
-      if (insErr || !inserted) {
-        console.error('[save] session insert failed', insErr)
-        setErrorMsg(`Couldn't save session: ${insErr?.message ?? 'unknown error'}`)
-        setSaving(false)
-        return
-      }
-      savedId = inserted.id
-    }
-
-    // If this session was part of a room, link it back to the
-    // room_participants row so together-time and cross-goal displays can
-    // resolve to a specific session per participant.
-    if (session.roomId && savedId) {
-      await supabase
-        .from('room_participants')
-        .update({ session_id: savedId })
-        .eq('room_id', session.roomId)
-        .eq('user_id', user.id)
-    }
-
-    // For updates we need to clear any prior task rows for this session
-    // before re-inserting the current state.
-    if (session.existingSessionId) {
-      await supabase.from('session_tasks').delete().eq('session_id', savedId)
-    }
-
-    // Persist sub-tasks entered at setup + their check-off durations.
-    if (session.tasks.length > 0) {
-      const durationById = taskDurations(session.tasks)
-      await supabase.from('session_tasks').insert(
-        session.tasks.map((t) => ({
-          session_id: savedId,
-          name: t.name,
-          position: t.position,
-          completed_at: t.completedAt,
-          duration_seconds: durationById.get(t.id) ?? null,
-          rating: taskRatings.has(t.id) ? taskRatings.get(t.id) : null,
-        }))
-      )
-    }
-
-    if (goalId) {
-      await supabase
-        .from('goals')
-        .update({ last_used_duration_minutes: session.plannedDurationMinutes })
-        .eq('id', goalId)
-    }
-
-    // Persist the just-finished session's shape as a reusable template if
-    // the user checked the "Save as quick start" box.
-    if (saveAsTemplate) {
-      await supabase.from('session_templates').insert({
-        user_id: user.id,
-        goal_id: goalId,
-        name: finalSessionName ?? 'Untitled session',
-        planned_duration_minutes: session.plannedDurationMinutes,
-        tasks: session.tasks.map((t) => ({ name: t.name })),
-        schedule: null,
-      })
-    }
-
-    const { count } = await supabase
-      .from('sessions')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-
     clearSession()
 
+    const { data: userData } = await supabase.auth.getUser()
+    const { count } = await supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userData.user?.id ?? '')
+      .eq('status', 'completed')
+
     const c = count ?? 0
-    const nudgeEnabled = localStorage.getItem('focus_nudge_enabled') !== 'false'
-    if (nudgeEnabled && (c === 1 || c % 5 === 0)) {
+    let nudgeEnabled = true
+    try { nudgeEnabled = localStorage.getItem('focus_nudge_enabled') !== 'false' } catch { /* default on */ }
+    if (nudgeEnabled && userData.user?.is_anonymous && (c === 1 || c % 5 === 0)) {
       setSavedCount(c)
     } else {
       router.push('/')

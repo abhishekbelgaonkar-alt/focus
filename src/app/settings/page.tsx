@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { attachEmail as attachEmailToAccount } from '@/lib/account'
 
 const NUDGE_KEY = 'focus_nudge_enabled'
 
@@ -26,18 +27,19 @@ export default function SettingsPage() {
   const [attachPassword, setAttachPassword] = useState('')
   const [attachError, setAttachError] = useState('')
   const [attaching, setAttaching] = useState(false)
-  const [attachSuccess, setAttachSuccess] = useState(false)
+  const [attachResult, setAttachResult] = useState<'attached' | 'confirm' | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setNudgeEnabled(localStorage.getItem(NUDGE_KEY) !== 'false')
+    try { setNudgeEnabled(localStorage.getItem(NUDGE_KEY) !== 'false') } catch { /* default on */ }
 
     ;(async () => {
       try {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
         setEmail(data.user.email ?? '')
-        setIsAnonymous(!data.user.email)
+        setIsAnonymous(data.user.is_anonymous ?? !data.user.email)
 
         const { count: sc } = await supabase
           .from('goals')
@@ -56,7 +58,7 @@ export default function SettingsPage() {
   const handleNudgeToggle = () => {
     const next = !nudgeEnabled
     setNudgeEnabled(next)
-    localStorage.setItem(NUDGE_KEY, String(next))
+    try { localStorage.setItem(NUDGE_KEY, String(next)) } catch { /* not persisted */ }
   }
 
   const handleChangePassword = async () => {
@@ -71,21 +73,14 @@ export default function SettingsPage() {
   const handleAttachEmail = async () => {
     setAttaching(true)
     setAttachError('')
-    // updateUser on an anon session promotes it in place — same user_id,
-    // so RLS-scoped data (goals, sessions, templates) stays reachable.
-    const { error } = await supabase.auth.updateUser({
-      email: attachEmail,
-      password: attachPassword,
-    })
-    if (error) {
-      setAttachError(error.message)
-      setAttaching(false)
-      return
-    }
-    setEmail(attachEmail)
-    setIsAnonymous(false)
-    setAttachSuccess(true)
+    const result = await attachEmailToAccount(supabase, attachEmail, attachPassword)
     setAttaching(false)
+    if (result.status === 'error') { setAttachError(result.message); return }
+    setAttachResult(result.status)
+    if (result.status === 'attached') {
+      setEmail(attachEmail.trim())
+      setIsAnonymous(false)
+    }
   }
 
   const handleSignOut = async () => {
@@ -95,9 +90,16 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = async () => {
     setDeleting(true)
-    await supabase.rpc('delete_user')
+    setDeleteError('')
+    const { error } = await supabase.rpc('delete_user')
+    if (error) {
+      console.error('[settings] delete_user failed', error)
+      setDeleteError("Couldn't delete your account. Nothing was removed; try again in a moment.")
+      setDeleting(false)
+      return
+    }
     await supabase.auth.signOut()
-    localStorage.clear()
+    try { localStorage.clear() } catch { /* ignore */ }
     router.push('/')
   }
 
@@ -133,9 +135,13 @@ export default function SettingsPage() {
               browser. Attach an email and password to keep this data
               reachable from other devices.
             </p>
-            {attachSuccess ? (
+            {attachResult === 'attached' ? (
               <p className="font-sans text-sm text-coral font-medium">
                 Attached. Your data is now saved to {email}.
+              </p>
+            ) : attachResult === 'confirm' ? (
+              <p className="font-sans text-sm text-text-primary">
+                Check your inbox for a confirmation link. Your data is attached once you click it.
               </p>
             ) : (
               <div className="flex flex-col gap-2">
@@ -216,7 +222,7 @@ export default function SettingsPage() {
           ) : (
             <div className="py-3 border-t border-border-warm">
               <p className="font-sans text-sm text-text-primary mb-1">
-                Sign out will delete this data.
+                Signing out will lose this data.
               </p>
               <p className="font-sans text-xs text-text-muted mb-3 leading-relaxed">
                 You haven&apos;t added an email, so this browser session is
@@ -321,6 +327,7 @@ export default function SettingsPage() {
             <p className="font-sans text-sm text-text-primary mb-4">
               This permanently deletes all your sessions, goals, and data. There is no undo.
             </p>
+            {deleteError && <p className="font-sans text-xs text-red-600 mb-3">{deleteError}</p>}
             <div className="flex gap-3 items-center">
               <button
                 onClick={handleDeleteAccount}

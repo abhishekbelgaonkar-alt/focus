@@ -47,7 +47,7 @@ export function RatingSlider({ value, onChange }: RatingSliderProps) {
                 x2={x}
                 y1={cy - halfHeight}
                 y2={cy + halfHeight}
-                stroke={isWhole ? '#b08c6a' : '#c9b79c'}
+                style={{ stroke: isWhole ? 'var(--color-text-muted)' : 'var(--color-text-light)' }}
                 strokeWidth={isWhole ? '1.5' : '1'}
               />
             )

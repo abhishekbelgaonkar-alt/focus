@@ -12,7 +12,8 @@ import { ErrorToast } from '@/components/ErrorToast'
 import { WeekdayPicker } from '@/components/WeekdayPicker'
 import type { Weekday, GoalStat } from '@/lib/types'
 import { formatDuration, timeAgo, todayWeekday } from '@/lib/format'
-import { saveSession } from '@/lib/session-state'
+import { saveSession, clearTimerState } from '@/lib/session-state'
+import { createGoal } from '@/lib/goals'
 import { NEW_GOAL_PLACEHOLDERS } from '@/components/RatingForm'
 import { getGoalColor } from '@/lib/goal-color'
 import { calcDayStreak } from '@/lib/stats'
@@ -90,7 +91,7 @@ function HomePageInner() {
     const all = (stats ?? []) as GoalStat[]
     setGoalStats(all)
     const today = todayWeekday()
-    setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
+    setTodayGoals(all.filter((g) => g.status === 'active' && (g.schedule?.includes(today) ?? false)))
     setScheduling(false)
     setScheduleGoalId('')
     setScheduleDays([])
@@ -263,7 +264,7 @@ function HomePageInner() {
         }
 
         const today = todayWeekday()
-        setTodayGoals(all.filter((g) => g.schedule?.includes(today) ?? false))
+        setTodayGoals(all.filter((g) => g.status === 'active' && (g.schedule?.includes(today) ?? false)))
 
         if (preselectedGoalId) {
           const match = all.find((g) => g.goal_id === preselectedGoalId)
@@ -291,16 +292,8 @@ function HomePageInner() {
   // session (and later ones on it) roll up under it in All Goals.
   const resolveGoal = async (): Promise<{ id: string; name: string } | null> => {
     if (goalMode.kind === 'existing') return { id: goalMode.id, name: goalMode.name }
-    const name = newGoalName.trim()
-    if (goalMode.kind !== 'new' || !name) return null
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData?.user) return null
-    const { data: newGoal } = await supabase
-      .from('goals')
-      .insert({ user_id: userData.user.id, name })
-      .select('id')
-      .single()
-    return newGoal ? { id: newGoal.id, name } : null
+    if (goalMode.kind !== 'new') return null
+    return createGoal(supabase, newGoalName)
   }
 
   const handleStart = async () => {
@@ -342,10 +335,7 @@ function HomePageInner() {
 
     if (error || !code) {
       console.error('[create_room] failed', error)
-      setRoomError(
-        error?.message ??
-          "Couldn't start the room. Check that anonymous auth is enabled in Supabase and the rooms migration has been applied."
-      )
+      setRoomError("Couldn't start the room. Try again in a moment.")
       return
     }
     router.push(`/r/${code}`)
@@ -433,12 +423,14 @@ function HomePageInner() {
     })
 
     // Clear any timer state so /timer builds a fresh one aligned to virtualStartedAt.
-    if (typeof window !== 'undefined') sessionStorage.removeItem('focus_timer_state')
+    clearTimerState()
 
     router.push('/timer')
   }
 
-  const recentGoals = goalStats.filter((g) => g.last_session_at !== null).slice(0, 3)
+  // Completed and abandoned goals stay in All goals, not in the setup flow.
+  const activeGoals = goalStats.filter((g) => g.status === 'active')
+  const recentGoals = activeGoals.filter((g) => g.last_session_at !== null).slice(0, 3)
   const todayDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   })
@@ -598,7 +590,7 @@ function HomePageInner() {
               >
                 None
               </button>
-              {goalStats.map((g) => {
+              {activeGoals.map((g) => {
                 const isSelected = goalMode.kind === 'existing' && goalMode.id === g.goal_id
                 return (
                   <button
@@ -942,7 +934,7 @@ function HomePageInner() {
             const hasTodayContent = hasReminders || hasScheduled
             // Goals the user could add to a schedule (has no schedule yet, OR has one
             // but not for today — either way, adding today makes sense).
-            const schedulableGoals = goalStats.filter(
+            const schedulableGoals = activeGoals.filter(
               (g) => !(g.schedule?.includes(weekdayShort) ?? false)
             )
 

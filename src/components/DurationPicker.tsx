@@ -121,10 +121,7 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
               : compact ? 3 : 4
             const x = `${((pos - min) / range) * 100}%`
             const cy = SLIDER_HEIGHT / 2
-            const stroke =
-              tier === 'large' ? '#b08c6a'
-              : tier === 'medium' ? '#b08c6a'
-              : compact ? '#dcc9ae' : '#c9b79c'
+            const stroke = tier === 'tiny' ? 'var(--color-text-light)' : 'var(--color-text-muted)'
             const width = tier === 'large' ? 1.5 : 1
             return (
               <line
@@ -133,7 +130,7 @@ export function DurationPicker({ value, onChange, min = 1, max = 90 }: DurationP
                 x2={x}
                 y1={cy - halfHeight}
                 y2={cy + halfHeight}
-                stroke={stroke}
+                style={{ stroke, opacity: tier === 'tiny' && compact ? 0.6 : 1 }}
                 strokeWidth={width}
               />
             )

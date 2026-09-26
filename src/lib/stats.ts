@@ -1,3 +1,5 @@
+import { localDateKey } from './format'
+
 export interface ChartPoint {
   date: string
   rating: number       // 0 when no rating (line-chart still needs a number)
@@ -40,17 +42,19 @@ export function getMinutesTierColor(minutes: number): string {
 
 // ── Streak ───────────────────────────────────────────────────────────────────
 
-export function calcDayStreak(sessionDates: string[]): number {
-  if (sessionDates.length === 0) return 0
-  const days = new Set(sessionDates.map((d) => d.slice(0, 10)))
+/**
+ * Consecutive local days with a session, ending today, or ending yesterday
+ * when today has none yet (so the streak doesn't read 0 every morning).
+ */
+export function calcDayStreak(sessionTimestamps: string[]): number {
+  if (sessionTimestamps.length === 0) return 0
+  const days = new Set(sessionTimestamps.map((t) => localDateKey(t)))
+  const d = new Date()
+  if (!days.has(localDateKey(d))) d.setDate(d.getDate() - 1)
   let streak = 0
-  const today = new Date()
-  for (let i = 0; i < 365; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const key = d.toISOString().slice(0, 10)
-    if (days.has(key)) streak++
-    else break
+  while (days.has(localDateKey(d))) {
+    streak++
+    d.setDate(d.getDate() - 1)
   }
   return streak
 }
@@ -86,7 +90,7 @@ export function getWeekViewPoints(
 ): ChartPoint[] {
   const byDay = new Map<string, { ratings: number[]; minutes: number }>()
   sessions.forEach((s) => {
-    const day = s.started_at.slice(0, 10)
+    const day = localDateKey(s.started_at)
     if (!byDay.has(day)) byDay.set(day, { ratings: [], minutes: 0 })
     const bucket = byDay.get(day)!
     if (s.rating !== null) bucket.ratings.push(s.rating)
@@ -110,7 +114,7 @@ export function weekStartKey(date: Date): string {
   const d = new Date(date)
   const dow = d.getDay()
   d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
-  return d.toISOString().slice(0, 10)
+  return localDateKey(d)
 }
 
 export function getMonthViewPoints(
@@ -144,7 +148,7 @@ export function buildHeatmapDays(
 ): Map<string, HeatmapEntry> {
   const map = new Map<string, HeatmapEntry>()
   sessions.forEach((s) => {
-    const date = s.started_at.slice(0, 10)
+    const date = localDateKey(s.started_at)
     if (!map.has(date)) map.set(date, { date, avgRating: 0, minutes: 0, count: 0 })
     const entry = map.get(date)!
     entry.minutes += s.actual_duration_minutes

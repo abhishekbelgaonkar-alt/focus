@@ -23,8 +23,10 @@ export function PeriodNoteBox({ periodType, periodDate, title, onClose }: Period
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const typed = useRef(false)
 
   useEffect(() => {
+    typed.current = false
     supabase
       .from('period_notes')
       .select('note')
@@ -32,7 +34,8 @@ export function PeriodNoteBox({ periodType, periodDate, title, onClose }: Period
       .eq('period_date', periodDate)
       .maybeSingle()
       .then(({ data }) => {
-        if (data?.note) setNote(data.note)
+        // Don't overwrite anything typed while the saved note was loading.
+        if (data?.note && !typed.current) setNote(data.note)
         textareaRef.current?.focus()
       })
   }, [periodDate, periodType])
@@ -78,7 +81,7 @@ export function PeriodNoteBox({ periodType, periodDate, title, onClose }: Period
         <textarea
           ref={textareaRef}
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={(e) => { typed.current = true; setNote(e.target.value) }}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
           placeholder=""

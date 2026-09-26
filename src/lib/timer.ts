@@ -16,12 +16,17 @@ export function formatTime(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+// Pressing Done within this long after the timer hits zero still counts as
+// finishing on time; only a later Done asks "what happened?".
+export const EXPIRY_GRACE_MS = 2 * 60 * 1000
+
 export function isTimerExpired(
   startedAt: number,
   plannedMs: number,
-  totalPausedMs: number
+  totalPausedMs: number,
+  graceMs = 0
 ): boolean {
-  return Date.now() - startedAt - totalPausedMs >= plannedMs
+  return Date.now() - startedAt - totalPausedMs >= plannedMs + graceMs
 }
 
 // Mood-language anchors for the session slider. These describe how the

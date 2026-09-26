@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { getRatingTierColor, getMinutesTierColor, getMonthGridDays, weekStartKey } from '@/lib/stats'
 import { PeriodNoteBox } from '@/components/PeriodNoteBox'
+import { localDateKey } from '@/lib/format'
 import type { HeatmapEntry } from '@/lib/stats'
 import type { PeriodType } from '@/lib/types'
 
@@ -125,7 +126,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
                     justifyContent: 'center',
                   }}
                 >
-                  <span style={{ fontSize: 7, color: 'rgba(61,49,38,0.5)', lineHeight: 1 }}>
+                  <span style={{ fontSize: 7, color: 'var(--color-text-primary)', opacity: 0.5, lineHeight: 1 }}>
                     {dayNum}
                   </span>
                 </div>
@@ -210,7 +211,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
   const renderMonthView = () => {
     const monthMap = new Map<string, { ratings: number[]; minutes: number }>()
     sessions.forEach((s) => {
-      const k = s.started_at.slice(0, 7)
+      const k = localDateKey(s.started_at).slice(0, 7)
       if (!monthMap.has(k)) monthMap.set(k, { ratings: [], minutes: 0 })
       const bucket = monthMap.get(k)!
       if (s.rating !== null) bucket.ratings.push(s.rating)
@@ -219,9 +220,9 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
 
     const months: string[] = []
     for (let i = 11; i >= 0; i--) {
-      const d = new Date()
-      d.setMonth(d.getMonth() - i)
-      months.push(d.toISOString().slice(0, 7))
+      // Day 1 of each month: setMonth() on today's date skips or repeats
+      // months when today is the 29th–31st.
+      months.push(localDateKey(new Date(now.getFullYear(), now.getMonth() - i, 1)).slice(0, 7))
     }
 
     return (

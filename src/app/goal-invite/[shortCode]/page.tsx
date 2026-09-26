@@ -39,30 +39,17 @@ export default function GoalInvitePage({ params }: Props) {
 
   useEffect(() => {
     ;(async () => {
-      const { data: invite } = await supabase
-        .from('goal_share_invites')
-        .select('goal_id, created_by')
-        .eq('short_code', shortCode)
-        .maybeSingle()
-
-      if (!invite) {
-        setStatus('not_found')
-        return
+      const { data, error } = await supabase.rpc('get_goal_invite', { p_code: shortCode })
+      if (error) { setStatus('error'); return }
+      const invite = data as {
+        status: 'not_found' | 'self' | 'already_linked' | 'ok'
+        goal_name?: string
+        owner_handle?: string
       }
-
-      const [{ data: g }, { data: p }, { data: userData }] = await Promise.all([
-        supabase.from('goals').select('name').eq('id', invite.goal_id).maybeSingle(),
-        supabase.from('user_profiles').select('handle').eq('user_id', invite.created_by).maybeSingle(),
-        supabase.auth.getUser(),
-      ])
-      setGoalName(g?.name ?? 'a goal')
-      setOwnerHandle(p?.handle ?? 'someone')
-
-      if (userData?.user?.id === invite.created_by) {
-        setStatus('self')
-      } else {
-        setStatus('ready')
-      }
+      if (invite.status === 'not_found') { setStatus('not_found'); return }
+      setGoalName(invite.goal_name ?? 'a goal')
+      setOwnerHandle(invite.owner_handle ?? 'someone')
+      setStatus(invite.status === 'ok' ? 'ready' : invite.status)
     })()
   }, [shortCode, supabase])
 
@@ -134,8 +121,8 @@ export default function GoalInvitePage({ params }: Props) {
             {goalName}
           </p>
           <p className="font-sans text-xs text-text-muted mb-8">
-            You&apos;ll get your own copy on your account. Your sessions and ratings
-            stay yours. The goal name and its link stay in sync between you.
+            You&apos;ll get your own copy on your account, linked to theirs.
+            Your sessions and ratings stay yours.
           </p>
           <button
             onClick={accept}

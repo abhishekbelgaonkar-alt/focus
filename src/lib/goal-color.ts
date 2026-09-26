@@ -1,6 +1,6 @@
-// Palette of goal colors — each goal gets one, picked by the user or
-// derived deterministically from the goal id. Tuned to stay legible as
-// text on the cream #fdf6ee background.
+// Palette of goal colors. Each goal gets one, picked by the user or
+// derived deterministically from the goal id. Keep in sync with the palette
+// in the save_session() SQL function.
 export const GOAL_PALETTE = [
   '#16a34a', // green
   '#d9642e', // coral

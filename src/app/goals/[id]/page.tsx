@@ -3,7 +3,7 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SessionRow } from '@/components/SessionRow'
-import { formatDuration, timeAgo } from '@/lib/format'
+import { formatDuration, timeAgo, localDateKey } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
 import { calcDayStreak } from '@/lib/stats'
 
@@ -55,24 +55,11 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
     if (g) setGoal(g as GoalData)
     setSessions((s ?? []) as unknown as SessionItem[])
 
-    // If this goal is part of a link_group, fetch the other collaborators'
-    // handles. RLS on the friends system allows reading any user_profile,
-    // so this shows a warm attribution without requiring extra permissions.
-    const goalRow = g as GoalData | null
-    if (goalRow?.link_group_id) {
-      const { data: linked } = await supabase
-        .from('goals')
-        .select('user_id')
-        .eq('link_group_id', goalRow.link_group_id)
-        .neq('user_id', goalRow.user_id)
-      const otherIds = ((linked ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
-      if (otherIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('user_profiles')
-          .select('handle')
-          .in('user_id', otherIds)
-        setLinkedWith(((profiles ?? []) as Array<{ handle: string }>).map((p) => p.handle))
-      }
+    // Other people holding a linked copy of this goal. Their goals aren't
+    // readable directly, so the server looks them up.
+    if ((g as GoalData | null)?.link_group_id) {
+      const { data: handles } = await supabase.rpc('get_linked_goal_handles', { p_goal_id: goalId })
+      setLinkedWith((handles ?? []) as string[])
     }
   }
 
@@ -87,8 +74,10 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
 
   const copyShare = async () => {
     if (!shareLink) return
-    await navigator.clipboard.writeText(shareLink)
-    setShareCopied(true)
+    try {
+      await navigator.clipboard.writeText(shareLink)
+      setShareCopied(true)
+    } catch { /* clipboard blocked: the link is selectable in the field */ }
   }
 
   useEffect(() => {
@@ -111,7 +100,7 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
   const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
 
   // Unique days worked
-  const uniqueDays = new Set(sessions.map((s) => s.started_at.slice(0, 10))).size
+  const uniqueDays = new Set(sessions.map((s) => localDateKey(s.started_at))).size
   // Consecutive-day streak
   const streak = calcDayStreak(sessions.map((s) => s.started_at))
   // Task tallies
@@ -260,7 +249,8 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
           height="14"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#b08c6a"
+          stroke="currentColor"
+          className="text-text-muted"
           strokeWidth="2"
           aria-hidden="true"
         >

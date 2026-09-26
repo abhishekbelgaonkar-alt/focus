@@ -25,18 +25,19 @@ export interface ThemeColors {
   heatmapPeak: string
 }
 
+// Paper theme values, used only until the real ones are read after mount.
 const FALLBACK: ThemeColors = {
-  coral: '#d9642e',
-  coralSoft: '#e8905a',
-  coralLight: '#fbe6d4',
-  borderWarm: '#ecdcc9',
-  textMuted: '#b08c6a',
-  textLight: '#c9b79c',
-  heatmapNone: '#f0ece2',
-  heatmapLow: '#f3d9bd',
-  heatmapMid: '#f0b587',
-  heatmapHigh: '#e8905a',
-  heatmapPeak: '#d9642e',
+  coral: '#2e3d5a',
+  coralSoft: '#4a5c7d',
+  coralLight: '#e0e4ee',
+  borderWarm: '#e2ddd1',
+  textMuted: '#6b6560',
+  textLight: '#a19b8f',
+  heatmapNone: '#e8e2d3',
+  heatmapLow: '#d4c3a8',
+  heatmapMid: '#b89675',
+  heatmapHigh: '#8a6547',
+  heatmapPeak: '#5c3a26',
 }
 
 const TOKENS: Record<keyof ThemeColors, string> = {

@@ -26,7 +26,7 @@ export interface GoalOption {
 }
 
 export interface RatingFormData {
-  rating: number
+  rating: number | null      // null when unrated and left untouched
   notes: string
   sessionName: string
   goalText: string          // used when creating a new goal
@@ -34,7 +34,7 @@ export interface RatingFormData {
 }
 
 interface RatingFormProps {
-  initialRating?: number
+  initialRating?: number | null    // null = unrated; saves null unless the slider is moved
   initialNotes?: string
   initialSessionName?: string
   focusText?: string | null
@@ -64,7 +64,8 @@ export function RatingForm({
   saveDisabled = false,
   hideSessionRating = false,
 }: RatingFormProps) {
-  const [rating, setRating] = useState(initialRating)
+  const [rating, setRating] = useState(initialRating ?? 3.0)
+  const [ratingTouched, setRatingTouched] = useState(false)
   const [notes, setNotes] = useState(initialNotes)
   const [sessionName, setSessionName] = useState(initialSessionName)
 
@@ -84,7 +85,7 @@ export function RatingForm({
     }
 
     onSave({
-      rating,
+      rating: initialRating === null && !ratingTouched ? null : rating,
       notes,
       sessionName,
       goalText: finalGoalText,
@@ -102,7 +103,7 @@ export function RatingForm({
 
       {!hideSessionRating && (
         <div className="mb-10">
-          <RatingSlider value={rating} onChange={setRating} />
+          <RatingSlider value={rating} onChange={(v) => { setRating(v); setRatingTouched(true) }} />
         </div>
       )}
 

@@ -46,7 +46,9 @@ export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineCha
     metric === 'rating' ? rawData.filter((p) => p.hasRating) : rawData
 
   const formatXTick = (v: string) => {
-    const d = new Date(v)
+    // Week/month points are local YYYY-MM-DD keys; parse them as local dates
+    // (a bare date string parses as UTC midnight, a day early in the west).
+    const d = v.length === 10 ? new Date(`${v}T00:00:00`) : new Date(v)
     if (mode === 'month') return d.toLocaleString('en-US', { month: 'short' })
     return `${d.getMonth() + 1}/${d.getDate()}`
   }
@@ -65,7 +67,7 @@ export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineCha
   const yConfig =
     metric === 'time'
       ? { domain: [0, yMax], ticks: undefined as unknown as number[] | undefined, formatter: (v: number) => `${v}m` }
-      : { domain: [1, 5], ticks: [1, 2, 3, 4, 5], formatter: (v: number) => String(v) }
+      : { domain: [0, 5], ticks: [0, 1, 2, 3, 4, 5], formatter: (v: number) => String(v) }
 
   return (
     <div>

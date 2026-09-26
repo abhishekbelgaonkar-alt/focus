@@ -14,13 +14,16 @@ const SEARCH_PLACEHOLDERS = [
   'Look up a note',
 ]
 
+// One row of the search_sessions() RPC.
 interface SearchResult {
   id: string
   session_name: string | null
   notes: string | null
   rating: number | null
   started_at: string
-  goals: { id: string; name: string; color: string | null } | null
+  goal_id: string | null
+  goal_name: string | null
+  goal_color: string | null
 }
 
 interface SearchBarProps {
@@ -48,17 +51,8 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
     if (!trimmed) { setResults([]); return }
 
     const t = setTimeout(async () => {
-      try {
-        const { data } = await supabase
-          .from('sessions')
-          .select('id, session_name, notes, rating, started_at, goals(id, name, color)')
-          .or(`session_name.ilike.%${trimmed}%,notes.ilike.%${trimmed}%`)
-          .order('started_at', { ascending: false })
-          .limit(20)
-        setResults((data ?? []) as unknown as SearchResult[])
-      } catch {
-        setResults([])
-      }
+      const { data } = await supabase.rpc('search_sessions', { p_query: trimmed })
+      setResults((data ?? []) as SearchResult[])
     }, 300)
     return () => clearTimeout(t)
   }, [query])
@@ -157,9 +151,9 @@ export function SearchBar({ onOpenChange }: SearchBarProps) {
             )}
 
             {results.map((r) => {
-              const goalName = r.goals?.name ?? null
-              const goalColor = r.goals
-                ? getGoalColor({ id: r.goals.id, color: r.goals.color })
+              const goalName = r.goal_name
+              const goalColor = r.goal_id
+                ? getGoalColor({ id: r.goal_id, color: r.goal_color })
                 : null
               const matchField = (() => {
                 const q = trimmed.toLowerCase()

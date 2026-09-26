@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDuration, formatDate, formatDateTime, getSnippet } from '@/lib/format'
+import { formatDuration, formatDate, formatDateTime, getSnippet, localDateKey } from '@/lib/format'
 
 describe('formatDuration', () => {
   it('shows minutes only when under 60', () => {
@@ -63,5 +63,14 @@ describe('getSnippet', () => {
   it('is case-insensitive', () => {
     const result = getSnippet('Started feeling tired', 'TIRED')
     expect(result).toContain('tired')
+  })
+})
+
+describe('localDateKey', () => {
+  it('uses the local calendar day, not the UTC one', () => {
+    const lateEvening = new Date(2026, 8, 7, 23, 30)   // Sep 7, 23:30 local
+    expect(localDateKey(lateEvening)).toBe('2026-09-07')
+    const justAfterMidnight = new Date(2026, 8, 8, 0, 15)
+    expect(localDateKey(justAfterMidnight)).toBe('2026-09-08')
   })
 })

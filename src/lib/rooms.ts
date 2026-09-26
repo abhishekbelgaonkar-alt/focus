@@ -95,3 +95,54 @@ export function effectiveDurationForTarget(
   const targetMs = new Date(targetEndIso).getTime()
   return Math.max(0, Math.floor((targetMs - joinedMs) / MS_PER_MIN))
 }
+
+/**
+ * A participant's planned duration in minutes: the room's, unless they
+ * used "stay with" to move their own end time.
+ */
+export function plannedMinutesFor(
+  joinedAtIso: string,
+  roomPlannedMinutes: number,
+  targetEndIso: string | null
+): number {
+  return targetEndIso ? effectiveDurationForTarget(joinedAtIso, targetEndIso) : roomPlannedMinutes
+}
+
+export interface Interval {
+  startMs: number
+  endMs: number
+}
+
+/**
+ * How long you actually focused alongside others. For each other person,
+ * whether they overlapped your time by at least a minute; and the total
+ * minutes during which at least one of them was there with you.
+ */
+export function togetherTime(
+  mine: Interval,
+  others: Interval[]
+): { minutes: number; overlapped: boolean[] } {
+  const clipped = others.map((o) => ({
+    startMs: Math.max(o.startMs, mine.startMs),
+    endMs: Math.min(o.endMs, mine.endMs),
+  }))
+  const overlapped = clipped.map((c) => c.endMs - c.startMs >= MS_PER_MIN)
+
+  // Length of the union of the overlapping intervals.
+  const spans = clipped.filter((c) => c.endMs > c.startMs).sort((a, b) => a.startMs - b.startMs)
+  let totalMs = 0
+  let curStart = -Infinity
+  let curEnd = -Infinity
+  for (const c of spans) {
+    if (c.startMs > curEnd) {
+      if (curEnd > curStart) totalMs += curEnd - curStart
+      curStart = c.startMs
+      curEnd = c.endMs
+    } else {
+      curEnd = Math.max(curEnd, c.endMs)
+    }
+  }
+  if (curEnd > curStart) totalMs += curEnd - curStart
+
+  return { minutes: Math.floor(totalMs / MS_PER_MIN), overlapped }
+}

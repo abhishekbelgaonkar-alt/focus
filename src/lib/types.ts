@@ -92,13 +92,10 @@ export interface Friendship {
   created_at: string
 }
 
-// Convenience shape for the Friends dropdown: a friend as seen from the
-// current user's perspective, with their profile info and current activity
-// flag pre-joined.
+// A friend as seen from the current user's side, for the Friends dropdown.
 export interface FriendView {
   user_id: string
   handle: string
-  is_focusing: boolean
 }
 
 export interface Room {
@@ -107,8 +104,7 @@ export interface Room {
   host_user_id: string
   planned_duration_minutes: number
   session_name: string | null
-  goal_id: string | null
-  goal_label: string | null
+  goal_label: string | null     // host's goal name, shared only when propagate_setup
   tasks: Array<{ name: string }>
   propagate_setup: boolean
   started_at: string
@@ -121,8 +117,17 @@ export interface RoomParticipant {
   user_id: string
   joined_at: string
   left_at: string | null
+  left_reason: 'left' | 'timeout' | null
+  last_seen_at: string
+  target_end_at: string | null  // set by "stay with"
   session_id: string | null
   tasks: Array<{ name: string }>
+}
+
+// A participant's goal for the room. Private: only its owner can read it.
+export interface RoomParticipantGoal {
+  room_id: string
+  user_id: string
   goal_id: string | null
   goal_label: string | null
 }
@@ -135,8 +140,7 @@ export interface RoomParticipantView {
   left_at: string | null
   is_you: boolean
   tasks: Array<{ name: string }>
-  goal_id: string | null
-  goal_label: string | null
+  target_end_at: string | null
 }
 
 export interface GoalShareInvite {

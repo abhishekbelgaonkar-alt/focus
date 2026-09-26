@@ -36,13 +36,9 @@ export default function SignInPage() {
   const handleSignIn = async () => {
     setSaving(true)
     setError('')
-    // If we're currently anon, sign out first so signInWithPassword doesn't
-    // race with the existing session — Supabase would replace it anyway, but
-    // being explicit makes the state transition predictable.
-    const { data: current } = await supabase.auth.getUser()
-    if (current?.user && !current.user.email) {
-      await supabase.auth.signOut()
-    }
+    // No sign-out first: a successful sign-in replaces the current session,
+    // and signing out before the password is checked would throw away the
+    // anonymous session (and its data) whenever the password is wrong.
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) {
       setError(err.message)

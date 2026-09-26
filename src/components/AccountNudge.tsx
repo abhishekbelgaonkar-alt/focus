@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { attachEmail } from '@/lib/account'
 import { useRouter } from 'next/navigation'
 
 interface AccountNudgeProps {
@@ -16,22 +17,16 @@ export function AccountNudge({ sessionCount, onDismiss }: AccountNudgeProps) {
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [result, setResult] = useState<'attached' | 'confirm' | null>(null)
 
   const handleCreate = async () => {
     setSaving(true)
     setError('')
-    // updateUser on an anon session promotes it in place — same user_id,
-    // same RLS scope, no data migration. Just stay put and confirm.
-    const { error: err } = await supabase.auth.updateUser({ email, password })
-    if (err) {
-      setError(err.message)
-      setSaving(false)
-      return
-    }
-    setSuccess(true)
+    const r = await attachEmail(supabase, email, password)
     setSaving(false)
-    setTimeout(onDismiss, 1600)
+    if (r.status === 'error') { setError(r.message); return }
+    setResult(r.status)
+    if (r.status === 'attached') setTimeout(onDismiss, 1600)
   }
 
   return (
@@ -53,9 +48,13 @@ export function AccountNudge({ sessionCount, onDismiss }: AccountNudgeProps) {
           Create an account so you don&apos;t lose this if you switch devices or clear your browser.
         </p>
 
-        {success ? (
+        {result === 'attached' ? (
           <p className="font-sans text-sm text-coral font-medium">
             Saved. Your data is now attached to {email}.
+          </p>
+        ) : result === 'confirm' ? (
+          <p className="font-sans text-sm text-text-primary">
+            Check your inbox for a confirmation link. Your data is attached once you click it.
           </p>
         ) : !showForm ? (
           <>

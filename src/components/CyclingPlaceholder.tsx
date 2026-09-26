@@ -34,14 +34,18 @@ export function CyclingPlaceholderProvider({
 
   useEffect(() => {
     // On each cycle: fade the CURRENT text out, wait fadeMs, swap index, fade in.
+    let fade: ReturnType<typeof setTimeout> | undefined
     const cycle = () => {
       setState((s) => ({ ...s, visible: false }))
-      setTimeout(() => {
+      fade = setTimeout(() => {
         setState((s) => ({ ...s, tick: s.tick + 1, visible: true }))
       }, fadeMs)
     }
     const t = setInterval(cycle, intervalMs)
-    return () => clearInterval(t)
+    return () => {
+      clearInterval(t)
+      clearTimeout(fade)
+    }
   }, [intervalMs, fadeMs])
 
   return <CyclingContext.Provider value={state}>{children}</CyclingContext.Provider>
