@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { clearSession, clearTimerState } from '@/lib/session-state'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -11,6 +12,8 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [sendingReset, setSendingReset] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   // If the person landing here has an anon account with data in this browser,
   // signing into a different account will orphan that data (RLS makes it
@@ -45,7 +48,22 @@ export default function SignInPage() {
       setSaving(false)
       return
     }
+    // A session in progress belonged to the account this browser just left.
+    clearSession()
+    clearTimerState()
     router.push('/')
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) { setError('Enter your email first, then tap Forgot password.'); return }
+    setSendingReset(true)
+    setError('')
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setSendingReset(false)
+    if (err) { setError(err.message); return }
+    setResetSent(true)
   }
 
   if (!checkedSession) return null
@@ -114,6 +132,22 @@ export default function SignInPage() {
       >
         {saving ? 'Signing in…' : 'Sign in'}
       </button>
+
+      <div className="mt-4 text-center">
+        {resetSent ? (
+          <p className="font-sans text-xs text-text-muted">
+            If {email.trim()} has an account, a reset link is on its way. Open it on this device.
+          </p>
+        ) : (
+          <button
+            onClick={handleForgotPassword}
+            disabled={sendingReset}
+            className="font-sans text-xs text-text-muted underline disabled:opacity-50"
+          >
+            {sendingReset ? 'Sending…' : 'Forgot password?'}
+          </button>
+        )}
+      </div>
 
       <p className="font-sans text-xs text-text-muted mt-8 text-center">
         Don&apos;t have an account? Just start using the app.{' '}

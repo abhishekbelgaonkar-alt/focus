@@ -1,17 +1,19 @@
 'use client'
 import { useState } from 'react'
-import { getRatingTierColor, getMinutesTierColor, getMonthGridDays, weekStartKey } from '@/lib/stats'
+import {
+  getRatingTierColor, getMinutesTierColor, getMonthGridDays, weekStartKey,
+  buildHeatmapDays, groupDays, bucketAverage, weekOfDay, monthOfDay,
+} from '@/lib/stats'
 import { PeriodNoteBox } from '@/components/PeriodNoteBox'
 import { localDateKey } from '@/lib/format'
-import type { HeatmapEntry } from '@/lib/stats'
+import type { DailyTotal } from '@/lib/stats'
 import type { PeriodType } from '@/lib/types'
 
 type HeatmapMode = 'day' | 'week' | 'month'
 type Metric = 'time' | 'rating'
 
 interface ConsistencyHeatmapProps {
-  dayMap: Map<string, HeatmapEntry>
-  sessions: Array<{ started_at: string; rating: number | null; actual_duration_minutes: number }>
+  days: DailyTotal[]
 }
 
 interface SelectedPeriod {
@@ -25,12 +27,9 @@ const GAP = 3
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function avgOrNull(ratings: number[]): number | null {
-  return ratings.length === 0 ? null : ratings.reduce((a, b) => a + b, 0) / ratings.length
-}
-
-export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps) {
+export function ConsistencyHeatmap({ days: dailyTotals }: ConsistencyHeatmapProps) {
   const now = new Date()
+  const dayMap = buildHeatmapDays(dailyTotals)
   const [mode, setMode] = useState<HeatmapMode>('day')
   const [metric, setMetric] = useState<Metric>('time')
   const [viewYear, setViewYear] = useState(now.getFullYear())
@@ -157,14 +156,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
   // ── Week view ────────────────────────────────────────────────────────────────
 
   const renderWeekView = () => {
-    const weekMap = new Map<string, { ratings: number[]; minutes: number }>()
-    sessions.forEach((s) => {
-      const k = weekStartKey(new Date(s.started_at))
-      if (!weekMap.has(k)) weekMap.set(k, { ratings: [], minutes: 0 })
-      const bucket = weekMap.get(k)!
-      if (s.rating !== null) bucket.ratings.push(s.rating)
-      bucket.minutes += s.actual_duration_minutes
-    })
+    const weekMap = groupDays(dailyTotals, weekOfDay)
 
     const weeks: string[] = []
     for (let i = 51; i >= 0; i--) {
@@ -179,7 +171,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
         <div className="flex flex-wrap gap-1.5 justify-center max-w-xs">
           {unique.map((week) => {
             const bucket = weekMap.get(week)
-            const avg = avgOrNull(bucket?.ratings ?? [])
+            const avg = bucketAverage(bucket)
             // For week/month, scale minutes-per-cell up (a full week of "deep"
             // work looks nothing like a single deep session) — 7× the day scale.
             const minutes = (bucket?.minutes ?? 0) / 7
@@ -209,14 +201,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
   // ── Month view ───────────────────────────────────────────────────────────────
 
   const renderMonthView = () => {
-    const monthMap = new Map<string, { ratings: number[]; minutes: number }>()
-    sessions.forEach((s) => {
-      const k = localDateKey(s.started_at).slice(0, 7)
-      if (!monthMap.has(k)) monthMap.set(k, { ratings: [], minutes: 0 })
-      const bucket = monthMap.get(k)!
-      if (s.rating !== null) bucket.ratings.push(s.rating)
-      bucket.minutes += s.actual_duration_minutes
-    })
+    const monthMap = groupDays(dailyTotals, monthOfDay)
 
     const months: string[] = []
     for (let i = 11; i >= 0; i--) {
@@ -230,7 +215,7 @@ export function ConsistencyHeatmap({ dayMap, sessions }: ConsistencyHeatmapProps
         <div className="flex flex-wrap gap-2 justify-center">
           {months.map((mk) => {
             const bucket = monthMap.get(mk)
-            const avg = avgOrNull(bucket?.ratings ?? [])
+            const avg = bucketAverage(bucket)
             // Same rationale as the week view — average daily minutes across
             // the ~30 days so a month of steady 30-min days looks warm.
             const minutes = (bucket?.minutes ?? 0) / 30

@@ -1,11 +1,12 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDuration, timeAgo } from '@/lib/format'
 import { getGoalColor, GOAL_PALETTE } from '@/lib/goal-color'
 import { SearchBar } from '@/components/SearchBar'
 import { createGoal } from '@/lib/goals'
+import { ErrorToast } from '@/components/ErrorToast'
 import type { GoalStat } from '@/lib/types'
 
 
@@ -13,7 +14,17 @@ type SortKey = 'recent' | 'time' | 'alpha'
 type FilterKey = 'active' | 'completed' | 'abandoned' | 'all'
 
 export default function AllGoalsPage() {
+  return (
+    <Suspense>
+      <AllGoalsPageInner />
+    </Suspense>
+  )
+}
+
+function AllGoalsPageInner() {
   const router = useRouter()
+  // ?new=1 (from the home page's "Create a goal first") opens the form.
+  const openNew = useSearchParams().get('new') === '1'
   const supabase = createClient()
   const [goals, setGoals] = useState<GoalStat[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +38,8 @@ export default function AllGoalsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // "New goal" form
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState(openNew)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
 
   const load = async () => {
@@ -59,7 +71,10 @@ export default function AllGoalsPage() {
   }, [goals, filter, sort])
 
   const handleCreate = async () => {
-    if (!(await createGoal(supabase, newName))) return
+    if (!(await createGoal(supabase, newName))) {
+      setActionError("Couldn't create the goal. Try again.")
+      return
+    }
     setNewName('')
     setCreating(false)
     await load()
@@ -68,19 +83,22 @@ export default function AllGoalsPage() {
   const handleRename = async (id: string) => {
     const name = editText.trim()
     if (!name) { setEditingId(null); return }
-    await supabase.from('goals').update({ name }).eq('id', id)
+    const { error } = await supabase.from('goals').update({ name }).eq('id', id)
+    if (error) { setActionError("Couldn't rename the goal. Try again."); return }
     setGoals((prev) => prev.map((g) => (g.goal_id === id ? { ...g, name } : g)))
     setEditingId(null)
   }
 
   const handleDelete = async (id: string) => {
-    await supabase.from('goals').delete().eq('id', id)
+    const { error } = await supabase.from('goals').delete().eq('id', id)
+    if (error) { setActionError("Couldn't delete the goal. Try again."); return }
     setGoals((prev) => prev.filter((g) => g.goal_id !== id))
     setDeletingId(null)
   }
 
   const handleColorChange = async (id: string, color: string) => {
-    await supabase.from('goals').update({ color }).eq('id', id)
+    const { error } = await supabase.from('goals').update({ color }).eq('id', id)
+    if (error) { setActionError("Couldn't change the colour. Try again."); return }
     setGoals((prev) => prev.map((g) => (g.goal_id === id ? { ...g, color } : g)))
     setColorPickerId(null)
   }
@@ -323,6 +341,7 @@ export default function AllGoalsPage() {
           })}
         </div>
       )}
+      {actionError && <ErrorToast message={actionError} onDismiss={() => setActionError(null)} />}
     </main>
   )
 }

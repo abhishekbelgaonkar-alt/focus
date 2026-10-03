@@ -3,6 +3,7 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { WeekdayPicker } from '@/components/WeekdayPicker'
+import { ErrorToast } from '@/components/ErrorToast'
 import type { Weekday } from '@/lib/types'
 
 export default function GoalSchedulePage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,6 +15,7 @@ export default function GoalSchedulePage({ params }: { params: Promise<{ id: str
   const [selectedDays, setSelectedDays] = useState<Weekday[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -32,11 +34,13 @@ export default function GoalSchedulePage({ params }: { params: Promise<{ id: str
 
   const handleSave = async () => {
     setSaving(true)
-    await supabase
+    setSaveError(null)
+    const { error } = await supabase
       .from('goals')
       .update({ schedule: selectedDays.length > 0 ? selectedDays : null })
       .eq('id', goalId)
     setSaving(false)
+    if (error) { setSaveError("Couldn't save the schedule. Try again."); return }
     router.back()
   }
 
@@ -70,6 +74,7 @@ export default function GoalSchedulePage({ params }: { params: Promise<{ id: str
       >
         {saving ? 'Saving…' : 'Save schedule'}
       </button>
+      {saveError && <ErrorToast message={saveError} onDismiss={() => setSaveError(null)} />}
     </main>
   )
 }

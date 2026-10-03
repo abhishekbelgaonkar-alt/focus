@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { clearSession, clearTimerState } from '@/lib/session-state'
 import { attachEmail as attachEmailToAccount } from '@/lib/account'
 
 const NUDGE_KEY = 'focus_nudge_enabled'
@@ -85,6 +86,9 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
+    // A session in progress belongs to the account signing out.
+    clearSession()
+    clearTimerState()
     router.push('/')
   }
 

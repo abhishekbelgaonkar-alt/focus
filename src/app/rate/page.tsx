@@ -11,7 +11,7 @@ import { taskDurations, formatTaskDuration, toTaskRows, nameFromTasks } from '@/
 import { togetherTime } from '@/lib/rooms'
 import { getRatingLabel } from '@/lib/timer'
 import type { InProgressSession } from '@/lib/session-state'
-import type { EndReason } from '@/lib/types'
+import type { EndReason, GoalStat } from '@/lib/types'
 import type { RatingFormData, GoalOption } from '@/components/RatingForm'
 
 const BRANCH_OPTIONS: { reason: EndReason; label: string }[] = [
@@ -85,15 +85,10 @@ export default function RatePage() {
       if (s.goalId) {
         const goalRow = (g ?? []).find((x) => x.id === s.goalId)
         if (goalRow) {
-          const { data: prior } = await supabase
-            .from('sessions')
-            .select('actual_duration_minutes')
-            .eq('user_id', data.user.id)
-            .eq('goal_id', s.goalId)
-            .eq('status', 'completed')
-          const priorMinutes = ((prior ?? []) as { actual_duration_minutes: number | null }[])
-            .reduce((sum, r) => sum + (r.actual_duration_minutes ?? 0), 0)
-          setGoalContext({ goalId: s.goalId, name: goalRow.name, priorMinutes })
+          // Totals are summed in the database, so they cover every session.
+          const { data: stats } = await supabase.rpc('get_goal_stats')
+          const stat = ((stats ?? []) as GoalStat[]).find((x) => x.goal_id === s.goalId)
+          setGoalContext({ goalId: s.goalId, name: goalRow.name, priorMinutes: stat?.total_minutes ?? 0 })
         }
       }
 
@@ -172,16 +167,18 @@ export default function RatePage() {
 
   // Derives the final logged duration based on branch answer (if expired)
   // or the elapsed minutes captured at Done (if not expired).
+  // A room continuing a saved-for-later session adds the minutes saved before.
   const resolveActualMinutes = (): number => {
     if (!session) return 0
+    const prior = session.priorMinutes ?? 0
     if (!session.isExpired) {
-      return session.actualDurationMinutes ?? session.plannedDurationMinutes
+      return prior + (session.actualDurationMinutes ?? session.plannedDurationMinutes)
     }
     if (branchReason === 'still_focused' && stillFocusedMinutes.trim()) {
-      return Math.max(1, parseInt(stillFocusedMinutes) || session.plannedDurationMinutes)
+      return prior + Math.max(1, parseInt(stillFocusedMinutes) || session.plannedDurationMinutes)
     }
     // distracted / forgot / other → default to planned
-    return session.plannedDurationMinutes
+    return prior + session.plannedDurationMinutes
   }
 
   const handleSave = async (form: RatingFormData) => {

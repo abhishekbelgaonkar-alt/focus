@@ -2,21 +2,21 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { clearSession, clearTimerState } from '@/lib/session-state'
 import { RatingLineChart } from '@/components/RatingLineChart'
 import { ConsistencyHeatmap } from '@/components/ConsistencyHeatmap'
-import { calcDayStreak, buildHeatmapDays } from '@/lib/stats'
+import { streakFromDays, fetchDailyTotals, type DailyTotal } from '@/lib/stats'
 import { formatDuration } from '@/lib/format'
 
-interface FullSession {
+// The day-view chart plots individual sessions; this many recent ones.
+const RECENT_SESSIONS = 500
+
+interface RecentSession {
   id: string
   session_name: string | null
-  planned_duration_minutes: number
   actual_duration_minutes: number
   started_at: string
-  ended_at: string
   rating: number | null
-  notes: string | null
-  end_reason: string | null
   goals: { name: string } | null
 }
 
@@ -24,7 +24,8 @@ export default function ProfilePage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const [sessions, setSessions] = useState<FullSession[]>([])
+  const [recent, setRecent] = useState<RecentSession[]>([])
+  const [days, setDays] = useState<DailyTotal[]>([])
   const [email, setEmail] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -35,18 +36,20 @@ export default function ProfilePage() {
         if (!data.user) return
         setEmail(data.user.email ?? null)
 
-        const { data: s } = await supabase
-          .from('sessions')
-          .select(`
-            id, session_name, planned_duration_minutes, actual_duration_minutes,
-            started_at, ended_at, rating, notes, end_reason,
-            goals(name)
-          `)
-          .eq('user_id', data.user.id)
-          .eq('status', 'completed')
-          .order('started_at', { ascending: true })
-
-        setSessions((s ?? []) as unknown as FullSession[])
+        // Totals come from per-day sums computed in the database, so they
+        // cover all time; only the day-view chart needs individual rows.
+        const [daily, { data: s }] = await Promise.all([
+          fetchDailyTotals(supabase),
+          supabase
+            .from('sessions')
+            .select('id, session_name, actual_duration_minutes, started_at, rating, goals(name)')
+            .eq('user_id', data.user.id)
+            .eq('status', 'completed')
+            .order('started_at', { ascending: false })
+            .limit(RECENT_SESSIONS),
+        ])
+        setDays(daily)
+        setRecent((s ?? []) as unknown as RecentSession[])
       } catch {
         /* renders zeros */
       } finally {
@@ -57,14 +60,17 @@ export default function ProfilePage() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
+    // A session in progress belongs to the account signing out.
+    clearSession()
+    clearTimerState()
     router.push('/')
   }
 
   if (loading) return null
 
-  const totalMinutes = sessions.reduce((sum, s) => sum + s.actual_duration_minutes, 0)
-  const streak = calcDayStreak(sessions.map((s) => s.started_at))
-  const dayMap = buildHeatmapDays(sessions)
+  const totalMinutes = days.reduce((sum, d) => sum + d.minutes, 0)
+  const sessionCount = days.reduce((sum, d) => sum + d.sessions, 0)
+  const streak = streakFromDays(days.map((d) => d.date))
 
   return (
     <main className="min-h-screen bg-cream px-6 pt-12 pb-10 max-w-md mx-auto">
@@ -119,7 +125,7 @@ export default function ProfilePage() {
         </div>
         <div>
           <p className="font-numbers text-2xl font-semibold text-text-primary">
-            {sessions.length}
+            {sessionCount}
           </p>
           <p className="font-sans text-xs text-text-muted mt-0.5">sessions</p>
         </div>
@@ -135,7 +141,8 @@ export default function ProfilePage() {
           Trend
         </p>
         <RatingLineChart
-          sessions={sessions}
+          sessions={recent}
+          days={days}
           onNavigateToSession={(id) => router.push(`/sessions/${id}`)}
         />
       </div>
@@ -145,7 +152,7 @@ export default function ProfilePage() {
         <p className="font-sans text-xs text-text-muted uppercase tracking-wide mb-4">
           Consistency
         </p>
-        <ConsistencyHeatmap dayMap={dayMap} sessions={sessions} />
+        <ConsistencyHeatmap days={days} />
       </div>
     </main>
   )

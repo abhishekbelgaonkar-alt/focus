@@ -19,29 +19,42 @@ export interface InProgressSession {
   tasks: InProgressTask[]       // optional sub-tasks entered at setup, checked during timer
   existingSessionId: string | null   // set when resuming a saved-for-later session
   roomId: string | null              // set when the session was part of a shared room
+  // Minutes already saved on the session being continued, when a room
+  // continues a saved-for-later session. Added to this stint on save.
+  priorMinutes?: number
 }
 
-const KEY = 'focus_in_progress'
-
-export function saveSession(s: InProgressSession): void {
-  if (typeof window === 'undefined') return
-  sessionStorage.setItem(KEY, JSON.stringify(s))
-}
-
-export function loadSession(): InProgressSession | null {
+/*
+  Kept in localStorage, not sessionStorage: a running session has to
+  survive the tab being closed, the phone discarding it, or the app being
+  opened in a new tab. Every access is guarded, because storage can be
+  unavailable (private mode, blocked site data) or full.
+*/
+function read<T>(key: string): T | null {
   if (typeof window === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(KEY)
-    return raw ? (JSON.parse(raw) as InProgressSession) : null
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : null
   } catch {
-    return null   // unreadable or corrupt: treat as no session in progress
+    return null   // unreadable or corrupt: treat as nothing stored
   }
 }
 
-export function clearSession(): void {
+function write(key: string, value: unknown): void {
   if (typeof window === 'undefined') return
-  sessionStorage.removeItem(KEY)
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* not persisted */ }
 }
+
+function remove(key: string): void {
+  if (typeof window === 'undefined') return
+  try { localStorage.removeItem(key) } catch { /* ignore */ }
+}
+
+export const SESSION_KEY = 'focus_in_progress'
+
+export const saveSession = (s: InProgressSession) => write(SESSION_KEY, s)
+export const loadSession = () => read<InProgressSession>(SESSION_KEY)
+export const clearSession = () => remove(SESSION_KEY)
 
 // The solo timer's clock (pauses included), kept separately from the session
 // so a resume or a page reload picks up exactly where it was.
@@ -52,24 +65,8 @@ export interface TimerState {
   totalPausedMs: number
 }
 
-const TIMER_KEY = 'focus_timer_state'
+export const TIMER_KEY = 'focus_timer_state'
 
-export function loadTimerState(): TimerState | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = sessionStorage.getItem(TIMER_KEY)
-    return raw ? (JSON.parse(raw) as TimerState) : null
-  } catch {
-    return null
-  }
-}
-
-export function saveTimerState(s: TimerState): void {
-  if (typeof window === 'undefined') return
-  sessionStorage.setItem(TIMER_KEY, JSON.stringify(s))
-}
-
-export function clearTimerState(): void {
-  if (typeof window === 'undefined') return
-  sessionStorage.removeItem(TIMER_KEY)
-}
+export const loadTimerState = () => read<TimerState>(TIMER_KEY)
+export const saveTimerState = (s: TimerState) => write(TIMER_KEY, s)
+export const clearTimerState = () => remove(TIMER_KEY)

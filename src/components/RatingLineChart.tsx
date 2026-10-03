@@ -11,12 +11,13 @@ import {
 import { getDayViewPoints, getWeekViewPoints, getMonthViewPoints } from '@/lib/stats'
 import { formatDateTime, formatDuration } from '@/lib/format'
 import { useThemeColors } from '@/lib/theme-colors'
-import type { ChartPoint } from '@/lib/stats'
+import type { ChartPoint, DailyTotal } from '@/lib/stats'
 
 type Mode = 'day' | 'week' | 'month'
 type Metric = 'time' | 'rating'
 
 interface RatingLineChartProps {
+  // Recent individual sessions, for the day view.
   sessions: Array<{
     id: string
     started_at: string
@@ -25,10 +26,12 @@ interface RatingLineChartProps {
     goals: { name: string } | null
     session_name: string | null
   }>
+  // Per-day totals for all time, for the week and month views.
+  days: DailyTotal[]
   onNavigateToSession?: (sessionId: string) => void
 }
 
-export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineChartProps) {
+export function RatingLineChart({ sessions, days, onNavigateToSession }: RatingLineChartProps) {
   const [mode, setMode] = useState<Mode>('day')
   const [metric, setMetric] = useState<Metric>('time')
   const [selected, setSelected] = useState<ChartPoint | null>(null)
@@ -38,8 +41,8 @@ export function RatingLineChart({ sessions, onNavigateToSession }: RatingLineCha
     mode === 'day'
       ? getDayViewPoints(sessions)
       : mode === 'week'
-      ? getWeekViewPoints(sessions)
-      : getMonthViewPoints(sessions)
+      ? getWeekViewPoints(days)
+      : getMonthViewPoints(days)
 
   // Rating mode still needs to skip points without a rating so the line doesn't dip to 0.
   const data =

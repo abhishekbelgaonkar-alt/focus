@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { localDateKey } from './format'
 
 export interface ChartPoint {
@@ -13,7 +14,7 @@ export interface HeatmapEntry {
   date: string
   avgRating: number   // 0 when no rated sessions
   minutes: number     // total across all sessions this day (rated or not)
-  count: number
+  count: number       // rated sessions this day
 }
 
 // ── Color scale ──────────────────────────────────────────────────────────────
@@ -40,15 +41,80 @@ export function getMinutesTierColor(minutes: number): string {
   return 'var(--color-heatmap-peak)'
 }
 
+// ── Daily totals ─────────────────────────────────────────────────────────────
+
+// One local day's completed sessions, from the get_daily_totals() RPC. The
+// database does the adding up, so long histories aren't cut off at the
+// API's row limit.
+export interface DailyTotal {
+  date: string        // YYYY-MM-DD in the user's timezone
+  sessions: number
+  minutes: number
+  rating_sum: number
+  rated: number       // sessions with a rating
+}
+
+/** Per-day totals in the browser's timezone, optionally for one goal. */
+export async function fetchDailyTotals(
+  supabase: SupabaseClient,
+  goalId: string | null = null
+): Promise<DailyTotal[]> {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const { data, error } = await supabase.rpc('get_daily_totals', { p_tz: tz, p_goal_id: goalId })
+  if (error) throw error
+  return (data ?? []) as DailyTotal[]
+}
+
+export interface Bucket {
+  sessions: number
+  minutes: number
+  ratingSum: number
+  rated: number
+}
+
+/** Sums daily totals into buckets, keyed by keyOf(day) (a week, a month…). */
+export function groupDays(days: DailyTotal[], keyOf: (date: string) => string): Map<string, Bucket> {
+  const out = new Map<string, Bucket>()
+  for (const d of days) {
+    const k = keyOf(d.date)
+    const b = out.get(k) ?? { sessions: 0, minutes: 0, ratingSum: 0, rated: 0 }
+    b.sessions += d.sessions
+    b.minutes += d.minutes
+    b.ratingSum += d.rating_sum
+    b.rated += d.rated
+    out.set(k, b)
+  }
+  return out
+}
+
+/** Average rating of a bucket, or null when nothing in it was rated. */
+export function bucketAverage(b: Pick<Bucket, 'ratingSum' | 'rated'> | undefined): number | null {
+  return b && b.rated > 0 ? b.ratingSum / b.rated : null
+}
+
+/** Monday of the week containing `date`, as YYYY-MM-DD. */
+export function weekStartKey(date: Date): string {
+  const d = new Date(date)
+  const dow = d.getDay()
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+  return localDateKey(d)
+}
+
+/** weekStartKey for a YYYY-MM-DD day key (read as a local date). */
+export const weekOfDay = (dateKey: string) => weekStartKey(new Date(`${dateKey}T00:00:00`))
+
+/** YYYY-MM for a YYYY-MM-DD day key. */
+export const monthOfDay = (dateKey: string) => dateKey.slice(0, 7)
+
 // ── Streak ───────────────────────────────────────────────────────────────────
 
 /**
  * Consecutive local days with a session, ending today, or ending yesterday
  * when today has none yet (so the streak doesn't read 0 every morning).
  */
-export function calcDayStreak(sessionTimestamps: string[]): number {
-  if (sessionTimestamps.length === 0) return 0
-  const days = new Set(sessionTimestamps.map((t) => localDateKey(t)))
+export function streakFromDays(dayKeys: Iterable<string>): number {
+  const days = new Set(dayKeys)
+  if (days.size === 0) return 0
   const d = new Date()
   if (!days.has(localDateKey(d))) d.setDate(d.getDate() - 1)
   let streak = 0
@@ -57,6 +123,11 @@ export function calcDayStreak(sessionTimestamps: string[]): number {
     d.setDate(d.getDate() - 1)
   }
   return streak
+}
+
+/** streakFromDays for a list of session start timestamps. */
+export function calcDayStreak(sessionTimestamps: string[]): number {
+  return streakFromDays(sessionTimestamps.map((t) => localDateKey(t)))
 }
 
 // ── Chart aggregation ────────────────────────────────────────────────────────
@@ -85,81 +156,44 @@ export function getDayViewPoints(sessions: RawSession[]): ChartPoint[] {
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
-export function getWeekViewPoints(
-  sessions: Pick<RawSession, 'started_at' | 'rating' | 'actual_duration_minutes'>[]
-): ChartPoint[] {
-  const byDay = new Map<string, { ratings: number[]; minutes: number }>()
-  sessions.forEach((s) => {
-    const day = localDateKey(s.started_at)
-    if (!byDay.has(day)) byDay.set(day, { ratings: [], minutes: 0 })
-    const bucket = byDay.get(day)!
-    if (s.rating !== null) bucket.ratings.push(s.rating)
-    bucket.minutes += s.actual_duration_minutes
-  })
-  return Array.from(byDay.entries())
-    .map(([date, { ratings, minutes }]) => ({
-      date,
-      rating:
-        ratings.length > 0
-          ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
-          : 0,
-      hasRating: ratings.length > 0,
-      minutes,
-    }))
+function bucketPoints(buckets: Map<string, Bucket>): ChartPoint[] {
+  return Array.from(buckets.entries())
+    .map(([date, b]) => {
+      const avg = bucketAverage(b)
+      return {
+        date,
+        rating: avg === null ? 0 : Math.round(avg * 10) / 10,
+        hasRating: avg !== null,
+        minutes: b.minutes,
+      }
+    })
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
-/** Monday of the week containing `date`, as YYYY-MM-DD. */
-export function weekStartKey(date: Date): string {
-  const d = new Date(date)
-  const dow = d.getDay()
-  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
-  return localDateKey(d)
+/** One point per day. */
+export function getWeekViewPoints(days: DailyTotal[]): ChartPoint[] {
+  return bucketPoints(groupDays(days, (d) => d))
 }
 
-export function getMonthViewPoints(
-  sessions: Pick<RawSession, 'started_at' | 'rating' | 'actual_duration_minutes'>[]
-): ChartPoint[] {
-  const byWeek = new Map<string, { ratings: number[]; minutes: number }>()
-  sessions.forEach((s) => {
-    const weekKey = weekStartKey(new Date(s.started_at))
-    if (!byWeek.has(weekKey)) byWeek.set(weekKey, { ratings: [], minutes: 0 })
-    const bucket = byWeek.get(weekKey)!
-    if (s.rating !== null) bucket.ratings.push(s.rating)
-    bucket.minutes += s.actual_duration_minutes
-  })
-  return Array.from(byWeek.entries())
-    .map(([date, { ratings, minutes }]) => ({
-      date,
-      rating:
-        ratings.length > 0
-          ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
-          : 0,
-      hasRating: ratings.length > 0,
-      minutes,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date))
+/** One point per week (Monday start). */
+export function getMonthViewPoints(days: DailyTotal[]): ChartPoint[] {
+  return bucketPoints(groupDays(days, weekOfDay))
 }
 
 // ── Heatmap ──────────────────────────────────────────────────────────────────
 
-export function buildHeatmapDays(
-  sessions: Pick<RawSession, 'started_at' | 'rating' | 'actual_duration_minutes'>[]
-): Map<string, HeatmapEntry> {
-  const map = new Map<string, HeatmapEntry>()
-  sessions.forEach((s) => {
-    const date = localDateKey(s.started_at)
-    if (!map.has(date)) map.set(date, { date, avgRating: 0, minutes: 0, count: 0 })
-    const entry = map.get(date)!
-    entry.minutes += s.actual_duration_minutes
-    if (s.rating !== null) {
-      const prevRatedCount = entry.count
-      const prevSum = entry.avgRating * prevRatedCount
-      entry.count = prevRatedCount + 1
-      entry.avgRating = (prevSum + s.rating) / entry.count
-    }
-  })
-  return map
+export function buildHeatmapDays(days: DailyTotal[]): Map<string, HeatmapEntry> {
+  return new Map(
+    days.map((d) => [
+      d.date,
+      {
+        date: d.date,
+        avgRating: d.rated > 0 ? d.rating_sum / d.rated : 0,
+        minutes: d.minutes,
+        count: d.rated,
+      },
+    ])
+  )
 }
 
 // Returns a flat array sized to complete Mon–Sun week rows for the given month.

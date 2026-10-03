@@ -12,7 +12,8 @@ import { ErrorToast } from '@/components/ErrorToast'
 import { WeekdayPicker } from '@/components/WeekdayPicker'
 import type { Weekday, GoalStat } from '@/lib/types'
 import { formatDuration, timeAgo, todayWeekday } from '@/lib/format'
-import { saveSession, clearTimerState } from '@/lib/session-state'
+import { saveSession, loadSession, clearSession, loadTimerState, clearTimerState } from '@/lib/session-state'
+import { restoreCheckOffs } from '@/lib/tasks'
 import { createGoal } from '@/lib/goals'
 import { NEW_GOAL_PLACEHOLDERS } from '@/components/RatingForm'
 import { getGoalColor } from '@/lib/goal-color'
@@ -75,7 +76,7 @@ function HomePageInner() {
   // Inline scheduler on the home page — expands when "+ Schedule a goal" is tapped.
   const [scheduling, setScheduling] = useState(false)
   const [scheduleGoalId, setScheduleGoalId] = useState<string>('')
-  const [roomError, setRoomError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   // Room-creation: whether joiners inherit the host's tasks/goal as their
   // starting setup. Default on — matches the "friend sets me up" case.
   const [propagateSetup, setPropagateSetup] = useState(true)
@@ -85,7 +86,12 @@ function HomePageInner() {
   const saveSchedule = async () => {
     if (!scheduleGoalId || scheduleDays.length === 0 || savingSchedule) return
     setSavingSchedule(true)
-    await supabase.from('goals').update({ schedule: scheduleDays }).eq('id', scheduleGoalId)
+    const { error } = await supabase.from('goals').update({ schedule: scheduleDays }).eq('id', scheduleGoalId)
+    if (error) {
+      setActionError("Couldn't save the schedule. Try again.")
+      setSavingSchedule(false)
+      return
+    }
     // Refresh goalStats so Today's plan re-computes with the new schedule.
     const { data: stats } = await supabase.rpc('get_goal_stats')
     const all = (stats ?? []) as GoalStat[]
@@ -115,6 +121,9 @@ function HomePageInner() {
   const [friendsOpen, setFriendsOpen] = useState(false)
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
   const [isAnonymousUser, setIsAnonymousUser] = useState(true)
+  // A session from this browser that isn't finished: still running on the
+  // timer, or ended but not yet saved on the Rate page.
+  const [unfinished, setUnfinished] = useState<'running' | 'unsaved' | null>(null)
 
   // Timer setup state — lives on the home screen.
   const [duration, setDuration] = useState(DEFAULT_DURATION)
@@ -163,6 +172,7 @@ function HomePageInner() {
 
   useEffect(() => {
     (async () => {
+      if (loadSession()) setUnfinished(loadTimerState() ? 'running' : 'unsaved')
       try {
         const { data } = await supabase.auth.getUser()
         if (!data.user) return
@@ -335,7 +345,7 @@ function HomePageInner() {
 
     if (error || !code) {
       console.error('[create_room] failed', error)
-      setRoomError("Couldn't start the room. Try again in a moment.")
+      setActionError("Couldn't start the room. Try again in a moment.")
       return
     }
     router.push(`/r/${code}`)
@@ -381,7 +391,7 @@ function HomePageInner() {
     const { data: row } = await supabase
       .from('sessions')
       .select(
-        'id, session_name, planned_duration_minutes, elapsed_seconds, goal_id, session_tasks(id, name, position, completed_at)'
+        'id, session_name, planned_duration_minutes, elapsed_seconds, goal_id, session_tasks(id, name, position, completed_at, duration_seconds)'
       )
       .eq('id', sessionId)
       .single()
@@ -405,20 +415,14 @@ function HomePageInner() {
       isExpired: false,
       existingSessionId: row.id,
       roomId: null,
-      tasks: (row.session_tasks ?? [])
-        .slice()
+      tasks: restoreCheckOffs(row.session_tasks ?? [])
         .sort((a, b) => a.position - b.position)
         .map((t) => ({
           id: t.id,
           name: t.name,
           position: t.position,
           completedAt: t.completed_at,
-          // Elapsed at completion for previously-checked tasks: recompute as
-          // best-effort by assuming their check time was proportional to
-          // position. We can't restore the exact moments; but the total
-          // elapsed since resume plus the recorded task completions is fine
-          // for downstream duration math.
-          elapsedSecondsAtCompletion: t.completed_at ? elapsedSec : null,
+          elapsedSecondsAtCompletion: t.elapsedSecondsAtCompletion,
         })),
     })
 
@@ -426,6 +430,13 @@ function HomePageInner() {
     clearTimerState()
 
     router.push('/timer')
+  }
+
+  const discardUnfinished = () => {
+    if (!window.confirm('Discard this session? Its time won’t be saved.')) return
+    clearSession()
+    clearTimerState()
+    setUnfinished(null)
   }
 
   // Completed and abandoned goals stay in All goals, not in the setup flow.
@@ -519,6 +530,27 @@ function HomePageInner() {
           </button>
         </div>
       </div>
+
+      {unfinished && (
+        <div className="w-full max-w-md mx-auto mb-6 flex items-center justify-between gap-3 p-3 border border-coral rounded-xl bg-coral-light">
+          <span className="font-sans text-sm text-tag-text">
+            {unfinished === 'running'
+              ? 'You have a focus session running.'
+              : 'You have a finished session that isn’t saved yet.'}
+          </span>
+          <span className="flex items-center gap-3 shrink-0">
+            <button onClick={discardUnfinished} className="font-sans text-xs text-text-muted">
+              Discard
+            </button>
+            <button
+              onClick={() => router.push(unfinished === 'running' ? '/timer' : '/rate')}
+              className="font-sans text-sm text-coral"
+            >
+              {unfinished === 'running' ? 'Back to timer →' : 'Save it →'}
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* ── Weekly stats — subtle line right below the search bar ─────── */}
       <p className="font-sans text-xs text-text-muted text-center mb-6">
@@ -955,7 +987,7 @@ function HomePageInner() {
                       <button
                         onClick={() => {
                           if (schedulableGoals.length === 0) {
-                            router.push('/rate?intent=new-goal')
+                            router.push('/goals?new=1')
                             return
                           }
                           setScheduling(true)
@@ -1099,8 +1131,8 @@ function HomePageInner() {
 
       <HowItWorksModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
-      {roomError && (
-        <ErrorToast message={roomError} onDismiss={() => setRoomError(null)} />
+      {actionError && (
+        <ErrorToast message={actionError} onDismiss={() => setActionError(null)} />
       )}
     </main>
   )

@@ -22,6 +22,7 @@ export function PeriodNoteBox({ periodType, periodDate, title, onClose }: Period
   const supabase = createClient()
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveFailed, setSaveFailed] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const typed = useRef(false)
 
@@ -45,24 +46,23 @@ export function PeriodNoteBox({ periodType, periodDate, title, onClose }: Period
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
 
-    if (note.trim()) {
-      await supabase.from('period_notes').upsert(
-        {
-          user_id: user.id,
-          period_type: periodType,
-          period_date: periodDate,
-          note: note.trim(),
-        },
-        { onConflict: 'user_id,period_type,period_date' }
-      )
-    } else {
-      await supabase
-        .from('period_notes')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('period_type', periodType)
-        .eq('period_date', periodDate)
-    }
+    const { error } = note.trim()
+      ? await supabase.from('period_notes').upsert(
+          {
+            user_id: user.id,
+            period_type: periodType,
+            period_date: periodDate,
+            note: note.trim(),
+          },
+          { onConflict: 'user_id,period_type,period_date' }
+        )
+      : await supabase
+          .from('period_notes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('period_type', periodType)
+          .eq('period_date', periodDate)
+    setSaveFailed(!!error)
     setSaving(false)
   }
 
@@ -96,6 +96,9 @@ export function PeriodNoteBox({ periodType, periodDate, title, onClose }: Period
         />
       </div>
       {saving && <p className="font-sans text-xs text-text-muted mt-1">Saving…</p>}
+      {!saving && saveFailed && (
+        <p className="font-sans text-xs text-coral mt-1">Couldn&apos;t save this note. Click outside the box to try again.</p>
+      )}
     </div>
   )
 }

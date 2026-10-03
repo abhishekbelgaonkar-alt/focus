@@ -3,6 +3,7 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { RatingForm } from '@/components/RatingForm'
+import { ErrorToast } from '@/components/ErrorToast'
 import type { RatingFormData } from '@/components/RatingForm'
 
 interface EditableSession {
@@ -21,6 +22,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
   const [session, setSession] = useState<EditableSession | null>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -42,8 +44,9 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
 
   const handleSave = async (form: RatingFormData) => {
     setSaving(true)
+    setSaveError(null)
 
-    await supabase
+    const { error } = await supabase
       .from('sessions')
       .update({
         rating: form.rating,
@@ -53,6 +56,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
       .eq('id', sessionId)
 
     setSaving(false)
+    if (error) { setSaveError("Couldn't save your changes. Try again."); return }
     router.push(`/sessions/${sessionId}`)
   }
 
@@ -62,6 +66,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
   const contextName = session.goals?.name ?? null
 
   return (
+    <>
     <RatingForm
       initialRating={session.rating}
       initialNotes={session.notes ?? ''}
@@ -71,5 +76,7 @@ export default function EditSessionPage({ params }: { params: Promise<{ id: stri
       saving={saving}
       showGoalPrompt={false}
     />
+    {saveError && <ErrorToast message={saveError} onDismiss={() => setSaveError(null)} />}
+    </>
   )
 }

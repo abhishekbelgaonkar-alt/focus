@@ -101,10 +101,11 @@ export interface FriendView {
 export interface Room {
   id: string
   short_code: string
-  host_user_id: string
+  host_user_id: string | null   // null once the host deletes their account
   planned_duration_minutes: number
   session_name: string | null
-  goal_label: string | null     // host's goal name, shared only when propagate_setup
+  // goal_label (the host's goal) isn't readable by participants; the invite
+  // preview includes it only when the host shares their setup.
   tasks: Array<{ name: string }>
   propagate_setup: boolean
   started_at: string
@@ -138,6 +139,7 @@ export interface RoomParticipantView {
   handle: string
   joined_at: string
   left_at: string | null
+  away: boolean                 // timed out (usually a locked phone), not ended
   is_you: boolean
   tasks: Array<{ name: string }>
   target_end_at: string | null

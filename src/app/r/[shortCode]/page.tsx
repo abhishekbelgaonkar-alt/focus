@@ -13,8 +13,10 @@ import {
   plannedMinutesFor,
 } from '@/lib/rooms'
 import { saveSession } from '@/lib/session-state'
+import { isTimerExpired, EXPIRY_GRACE_MS } from '@/lib/timer'
 import { createGoal } from '@/lib/goals'
 import { TaskCheck } from '@/components/TaskCheck'
+import { ErrorToast } from '@/components/ErrorToast'
 import type { Room, RoomParticipantView } from '@/lib/types'
 
 /*
@@ -26,8 +28,9 @@ import type { Room, RoomParticipantView } from '@/lib/types'
     * Any home-page entry point (quick-start, today's schedule, continue
       in-progress, new goal) is reachable from inside the room.
     * A heartbeat every minute keeps you in the room. Go quiet for five
-      minutes (closed tab, sleeping laptop) and you drop out of the list;
-      come back and you're revived with your clock intact.
+      minutes (locked phone, closed tab, sleeping laptop) and others see you
+      as away; come back and you're revived with your clock intact.
+    * If the room ends while you're away, you can still save your session.
 */
 
 type PageStatus =
@@ -38,6 +41,7 @@ type PageStatus =
   | 'not_joined'
   | 'full'
   | 'in_room'
+  | 'ended_away'    // the room ended while you were away; your time is still yours
   | 'error'
 
 interface Props {
@@ -79,13 +83,18 @@ type CheckedTasks = Map<number, { completedAt: string; elapsedSecondsAtCompletio
 
 const HEARTBEAT_MS = 60_000
 
-// Check-offs are private, so they live in this tab rather than the database.
-// Keyed per room so a refresh doesn't lose them.
+// The room row minus the host's private goal label, which participants
+// aren't allowed to read.
+const ROOM_COLUMNS =
+  'id, short_code, host_user_id, planned_duration_minutes, session_name, tasks, propagate_setup, started_at, ended_at, created_at'
+
+// Check-offs are private, so they live in this browser rather than the
+// database. Keyed per room so a refresh or a new tab doesn't lose them.
 const checksKey = (roomId: string) => `room_checks:${roomId}`
 
 function loadChecks(roomId: string): CheckedTasks {
   try {
-    const raw = sessionStorage.getItem(checksKey(roomId))
+    const raw = localStorage.getItem(checksKey(roomId))
     return raw ? new Map(JSON.parse(raw)) : new Map()
   } catch {
     return new Map()
@@ -138,19 +147,22 @@ export default function RoomPage({ params }: Props) {
   const [shareCopied, setShareCopied] = useState(false)
   // A saved-for-later session being continued in this room.
   const [continuing, setContinuing] = useState<{ id: string; priorMinutes: number } | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const reloadParticipants = useCallback(async (roomId: string, currentUserId: string) => {
     const { data: raw } = await supabase
       .from('room_participants')
-      .select('user_id, joined_at, left_at, tasks, target_end_at')
+      .select('user_id, joined_at, left_at, left_reason, tasks, target_end_at')
       .eq('room_id', roomId)
-      .is('left_at', null)
+      // Present, or gone quiet (usually a locked phone) without pressing End.
+      .or('left_at.is.null,left_reason.eq.timeout')
       .order('joined_at', { ascending: true })
 
     const activeRows = (raw ?? []) as Array<{
       user_id: string
       joined_at: string
       left_at: string | null
+      left_reason: 'left' | 'timeout' | null
       tasks: Array<{ name: string }> | null
       target_end_at: string | null
     }>
@@ -174,6 +186,7 @@ export default function RoomPage({ params }: Props) {
         handle: handleByUser.get(r.user_id) ?? 'unknown',
         joined_at: r.joined_at,
         left_at: r.left_at,
+        away: r.left_reason === 'timeout',
         is_you: r.user_id === currentUserId,
         tasks: r.tasks ?? [],
         target_end_at: r.target_end_at,
@@ -208,28 +221,36 @@ export default function RoomPage({ params }: Props) {
     setMyInProgress((ip ?? []) as InProgressRow[])
   }, [supabase])
 
-  // Check in, then load everything a participant sees.
-  const enterRoom = useCallback(async (roomId: string, userId: string) => {
-    const { data: beat } = await supabase.rpc('room_heartbeat', { p_room_id: roomId })
-    if (beat === 'ended') { setStatus('ended'); return }
-    if (beat !== 'active') { setStatus('not_joined'); return }
-
+  // Everything a participant sees. False if the room or your row is missing.
+  const loadRoom = useCallback(async (roomId: string, userId: string) => {
     const [{ data: roomRow }, { data: myPart }, { data: goalRow }] = await Promise.all([
-      supabase.from('rooms').select('*').eq('id', roomId).single(),
+      supabase.from('rooms').select(ROOM_COLUMNS).eq('id', roomId).single(),
       supabase.from('room_participants').select('joined_at')
         .eq('room_id', roomId).eq('user_id', userId).single(),
       supabase.from('room_participant_goals').select('goal_id, goal_label')
         .eq('room_id', roomId).eq('user_id', userId).maybeSingle(),
     ])
-    if (!roomRow || !myPart) { setStatus('error'); return }
+    if (!roomRow || !myPart) return false
 
     setRoom(roomRow as Room)
     setMyJoinedAt(myPart.joined_at)
     setMyGoal({ goal_id: goalRow?.goal_id ?? null, goal_label: goalRow?.goal_label ?? null })
     setCheckedTasks(loadChecks(roomId))
     await Promise.all([reloadParticipants(roomId, userId), loadUserData(userId)])
-    setStatus('in_room')
+    return true
   }, [supabase, reloadParticipants, loadUserData])
+
+  // Check in, then load the room.
+  const enterRoom = useCallback(async (roomId: string, userId: string) => {
+    const { data: beat } = await supabase.rpc('room_heartbeat', { p_room_id: roomId })
+    if (beat === 'ended') {
+      // Ended between the preview and now: you were still a member.
+      setStatus((await loadRoom(roomId, userId)) ? 'ended_away' : 'ended')
+      return
+    }
+    if (beat !== 'active') { setStatus('not_joined'); return }
+    setStatus((await loadRoom(roomId, userId)) ? 'in_room' : 'error')
+  }, [supabase, loadRoom])
 
   // Initial load.
   useEffect(() => {
@@ -242,13 +263,19 @@ export default function RoomPage({ params }: Props) {
       if (error) { setStatus('error'); return }
       const result = data as { status: string } & RoomPreview
       if (result.status === 'not_found') { setStatus('not_found'); return }
-      if (result.status === 'ended') { setStatus('ended'); return }
+      if (result.status === 'ended') {
+        // A member who never pressed End (phone locked, tab closed) can
+        // still save the time they put in.
+        const saved = result.is_member && (await loadRoom(result.room_id, userData.user.id))
+        setStatus(saved ? 'ended_away' : 'ended')
+        return
+      }
       setPreview(result)
 
       if (result.is_member) await enterRoom(result.room_id, userData.user.id)
       else setStatus('not_joined')
     })()
-  }, [shortCode, supabase, enterRoom])
+  }, [shortCode, supabase, enterRoom, loadRoom])
 
   // Realtime: participant rows (tasks, joins, leaves, stay-with).
   useEffect(() => {
@@ -269,7 +296,9 @@ export default function RoomPage({ params }: Props) {
     if (status !== 'in_room' || !room) return
     const beat = async () => {
       const { data } = await supabase.rpc('room_heartbeat', { p_room_id: room.id })
-      if (data === 'ended') setStatus('ended')
+      // The room ended while this tab was asleep: keep the time you put in.
+      if (data === 'ended') setStatus('ended_away')
+      // Pressed End in another tab or device: that one saved the session.
       else if (data === 'left') setStatus('not_joined')
     }
     const onVisible = () => { if (document.visibilityState === 'visible') beat() }
@@ -285,7 +314,7 @@ export default function RoomPage({ params }: Props) {
   useEffect(() => {
     if (!room) return
     try {
-      sessionStorage.setItem(checksKey(room.id), JSON.stringify([...checkedTasks]))
+      localStorage.setItem(checksKey(room.id), JSON.stringify([...checkedTasks]))
     } catch { /* storage unavailable: check-offs just won't survive a refresh */ }
   }, [room, checkedTasks])
 
@@ -316,13 +345,17 @@ export default function RoomPage({ params }: Props) {
     goal_label: string | null
   ) => {
     if (!room) return
-    await supabase.rpc('update_participant_setup', {
+    const { error } = await supabase.rpc('update_participant_setup', {
       p_room_id: room.id,
       p_tasks: tasks,
       p_goal_id: goal_id,
       p_goal_label: goal_label,
     })
-    // Realtime will trigger reloadParticipants; also optimistic-update:
+    if (error) {
+      setActionError("Couldn't save that change. Check your connection and try again.")
+      return
+    }
+    // Realtime will trigger reloadParticipants; also update right away.
     setParticipants((prev) => prev.map((p) => (p.is_you ? { ...p, tasks } : p)))
     setMyGoal({ goal_id, goal_label })
   }
@@ -426,18 +459,23 @@ export default function RoomPage({ params }: Props) {
 
   const endSession = async () => {
     if (!room || !myJoinedAt || !myUserId) return
+    const planned = plannedMinutesFor(myJoinedAt, room.planned_duration_minutes, me?.target_end_at ?? null)
     // Click handler, not render: the tick-based nowMs can be 15s stale here.
     // eslint-disable-next-line react-hooks/purity
     const roomMinutes = Math.max(1, elapsedMinutes(myJoinedAt, Date.now()))
+    // Same rule as the solo timer: ending well past your target (a tab left
+    // open, a phone left locked) asks what happened instead of logging it all.
+    const expired = isTimerExpired(new Date(myJoinedAt).getTime(), planned * 60_000, 0, EXPIRY_GRACE_MS)
 
     saveSession({
-      plannedDurationMinutes: plannedMinutesFor(myJoinedAt, room.planned_duration_minutes, me?.target_end_at ?? null),
+      plannedDurationMinutes: planned,
       startedAt: myJoinedAt,
       setupFocusText: room.session_name,
       goalId: myGoalId,
       endReason: null,
-      actualDurationMinutes: roomMinutes + (continuing?.priorMinutes ?? 0),
-      isExpired: false,
+      actualDurationMinutes: expired ? null : roomMinutes,
+      isExpired: expired,
+      priorMinutes: continuing?.priorMinutes,
       tasks: myTasks.map((t, i) => {
         const checked = checkedTasks.get(i)
         return {
@@ -453,8 +491,16 @@ export default function RoomPage({ params }: Props) {
     })
 
     await supabase.rpc('leave_room', { p_room_id: room.id })
-    try { sessionStorage.removeItem(checksKey(room.id)) } catch { /* ignore */ }
+    try { localStorage.removeItem(checksKey(room.id)) } catch { /* ignore */ }
     router.push('/rate')
+  }
+
+  // Leave without saving (from the "room ended while you were away" screen).
+  const discardSession = async () => {
+    if (!room) return
+    await supabase.rpc('leave_room', { p_room_id: room.id })
+    try { localStorage.removeItem(checksKey(room.id)) } catch { /* ignore */ }
+    router.push('/')
   }
 
   const toggleRoomTask = (index: number) => {
@@ -537,6 +583,32 @@ export default function RoomPage({ params }: Props) {
       <main className="min-h-screen bg-cream px-6 pt-16 pb-10 max-w-md mx-auto">
         <p className="font-sans text-sm text-text-primary mb-4">This room has ended.</p>
         <button onClick={() => router.push('/')} className="font-sans text-sm text-coral">Go home</button>
+      </main>
+    )
+  }
+
+  if (status === 'ended_away' && room && myJoinedAt) {
+    const away = elapsedMinutes(myJoinedAt, nowMs)
+    return (
+      <main className="min-h-screen bg-cream px-6 pt-16 pb-10 max-w-md mx-auto">
+        <p className="font-sans text-2xl font-medium text-text-primary mb-2">
+          The room ended while you were away.
+        </p>
+        <p className="font-sans text-sm text-text-muted mb-8">
+          Your time still counts. You started {formatDuration(away)} ago.
+        </p>
+        <button
+          onClick={endSession}
+          className="w-full bg-coral text-white font-sans font-medium py-3 rounded-pill"
+        >
+          Save your session
+        </button>
+        <button
+          onClick={discardSession}
+          className="w-full font-sans text-sm text-text-muted mt-4"
+        >
+          Don&apos;t save it
+        </button>
       </main>
     )
   }
@@ -867,13 +939,15 @@ export default function RoomPage({ params }: Props) {
                   <div className="flex items-baseline gap-2">
                     <span
                       className="w-1.5 h-1.5 rounded-full shrink-0 translate-y-[-2px]"
-                      style={{ backgroundColor: 'var(--color-check-green)' }}
+                      style={{ backgroundColor: p.away ? 'var(--color-text-light)' : 'var(--color-check-green)' }}
                       aria-hidden="true"
                     />
-                    <p className="font-sans text-sm text-text-primary flex-1">
+                    <p className={`font-sans text-sm flex-1 ${p.away ? 'text-text-muted' : 'text-text-primary'}`}>
                       {p.handle}
                     </p>
                     <p className="font-sans text-xs text-text-light">
+                      {/* Away usually means a locked phone: probably still focusing. */}
+                      {p.away ? 'away · ' : ''}
                       {formatParticipantStatus(p.joined_at, otherPlanned, nowMs)}
                     </p>
                     {canSync && (
@@ -931,6 +1005,7 @@ export default function RoomPage({ params }: Props) {
           </button>
         </div>
       </div>
+      {actionError && <ErrorToast message={actionError} onDismiss={() => setActionError(null)} />}
     </main>
   )
 }

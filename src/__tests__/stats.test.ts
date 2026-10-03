@@ -7,7 +7,13 @@ import {
   getRatingTierColor,
   buildHeatmapDays,
   getMonthGridDays,
+  groupDays,
+  bucketAverage,
+  streakFromDays,
+  weekOfDay,
+  type DailyTotal,
 } from '@/lib/stats'
+import { localDateKey } from '@/lib/format'
 
 const daysAgo = (n: number) => {
   const d = new Date()
@@ -94,9 +100,15 @@ describe('getDayViewPoints', () => {
   })
 })
 
+// The same three sessions as SESSIONS, as get_daily_totals() returns them.
+const DAYS: DailyTotal[] = [
+  { date: '2026-09-01', sessions: 2, minutes: 70, rating_sum: 7, rated: 2 },
+  { date: '2026-09-08', sessions: 1, minutes: 50, rating_sum: 5, rated: 1 },
+]
+
 describe('getWeekViewPoints', () => {
   it('averages ratings and sums minutes across same-day sessions', () => {
-    const pts = getWeekViewPoints(SESSIONS)
+    const pts = getWeekViewPoints(DAYS)
     const sep1 = pts.find(p => p.date === '2026-09-01')
     expect(sep1).toBeDefined()
     expect(sep1!.rating).toBe(3.5)
@@ -104,19 +116,19 @@ describe('getWeekViewPoints', () => {
   })
 
   it('produces one point per unique day', () => {
-    expect(getWeekViewPoints(SESSIONS)).toHaveLength(2)
+    expect(getWeekViewPoints(DAYS)).toHaveLength(2)
   })
 })
 
 describe('getMonthViewPoints', () => {
   it('groups sessions by ISO week (Monday start) and averages', () => {
-    expect(getMonthViewPoints(SESSIONS)).toHaveLength(2)
+    expect(getMonthViewPoints(DAYS)).toHaveLength(2)
   })
 })
 
 describe('buildHeatmapDays', () => {
   it('maps each date to its average rating and count', () => {
-    const map = buildHeatmapDays(SESSIONS)
+    const map = buildHeatmapDays(DAYS)
     const sep1 = map.get('2026-09-01')
     expect(sep1).toBeDefined()
     expect(sep1!.count).toBe(2)
@@ -137,5 +149,42 @@ describe('getMonthGridDays', () => {
 
   it('total cells is divisible by 7', () => {
     expect(getMonthGridDays(2026, 8).length % 7).toBe(0)
+  })
+})
+
+describe('groupDays', () => {
+  it('sums days into weeks, averaging only rated sessions', () => {
+    const days: DailyTotal[] = [
+      { date: '2026-09-07', sessions: 1, minutes: 30, rating_sum: 4, rated: 1 },  // Monday
+      { date: '2026-09-09', sessions: 2, minutes: 40, rating_sum: 0, rated: 0 },  // unrated
+      { date: '2026-09-13', sessions: 1, minutes: 10, rating_sum: 2, rated: 1 },  // Sunday
+      { date: '2026-09-14', sessions: 1, minutes: 25, rating_sum: 5, rated: 1 },  // next Monday
+    ]
+    const weeks = groupDays(days, weekOfDay)
+    const first = weeks.get('2026-09-07')!
+    expect(first.sessions).toBe(4)
+    expect(first.minutes).toBe(80)
+    expect(bucketAverage(first)).toBe(3)
+    expect(weeks.get('2026-09-14')!.minutes).toBe(25)
+  })
+
+  it('has no average when nothing was rated', () => {
+    expect(bucketAverage({ ratingSum: 0, rated: 0 })).toBeNull()
+    expect(bucketAverage(undefined)).toBeNull()
+  })
+})
+
+describe('streakFromDays', () => {
+  const dayKey = (n: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() - n)
+    return localDateKey(d)
+  }
+
+  it('counts day keys the same way as timestamps', () => {
+    expect(streakFromDays([dayKey(2), dayKey(1), dayKey(0)])).toBe(3)
+    expect(streakFromDays([dayKey(2), dayKey(1)])).toBe(2)
+    expect(streakFromDays([dayKey(3), dayKey(1)])).toBe(1)
+    expect(streakFromDays([])).toBe(0)
   })
 })

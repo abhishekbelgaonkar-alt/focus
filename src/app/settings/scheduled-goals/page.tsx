@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { ErrorToast } from '@/components/ErrorToast'
 
 const DAY_LABELS: Record<string, string> = {
   mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu',
@@ -19,6 +20,7 @@ export default function ScheduledGoalsPage() {
   const supabase = createClient()
   const [goals, setGoals] = useState<ScheduledGoal[]>([])
   const [loading, setLoading] = useState(true)
+  const [removeError, setRemoveError] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -42,7 +44,8 @@ export default function ScheduledGoalsPage() {
   }, [])
 
   const handleRemove = async (goalId: string) => {
-    await supabase.from('goals').update({ schedule: null }).eq('id', goalId)
+    const { error } = await supabase.from('goals').update({ schedule: null }).eq('id', goalId)
+    if (error) { setRemoveError("Couldn't remove the schedule. Try again."); return }
     setGoals((prev) => prev.filter((g) => g.id !== goalId))
   }
 
@@ -96,6 +99,7 @@ export default function ScheduledGoalsPage() {
           ))}
         </div>
       )}
+      {removeError && <ErrorToast message={removeError} onDismiss={() => setRemoveError(null)} />}
     </main>
   )
 }

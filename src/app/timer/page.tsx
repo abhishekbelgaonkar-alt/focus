@@ -8,6 +8,8 @@ import {
   loadTimerState,
   saveTimerState,
   clearTimerState,
+  SESSION_KEY,
+  TIMER_KEY,
   type TimerState,
 } from '@/lib/session-state'
 import { getRemainingMs, formatTime, isTimerExpired, EXPIRY_GRACE_MS } from '@/lib/timer'
@@ -68,6 +70,25 @@ export default function TimerPage() {
       setTodayBankedMinutes(sum)
     })()
   }, [])
+
+  // The same session open in another tab: follow its pauses, check-offs
+  // and added time, and leave when it's finished or saved there.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === TIMER_KEY) {
+        const t = loadTimerState()
+        // Cleared: finished (Done) or saved for later in the other tab.
+        if (t) setTimer(t)
+        else router.replace('/')
+      } else if (e.key === SESSION_KEY) {
+        const s = loadSession()
+        if (s) setSession(s)
+        else router.replace('/')
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [router])
 
   // rAF loop reading the latest timer through a ref. It only sets state
   // when the displayed second changes, so the page re-renders once a second

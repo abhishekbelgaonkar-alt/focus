@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DurationPicker } from '@/components/DurationPicker'
 import { WeekdayPicker } from '@/components/WeekdayPicker'
+import { ErrorToast } from '@/components/ErrorToast'
 import type { Weekday } from '@/lib/types'
 
 interface GoalOption { id: string; name: string; color: string | null }
@@ -20,6 +21,7 @@ export default function NewTemplatePage() {
   const [tasks, setTasks] = useState<string[]>([])
   const [schedule, setSchedule] = useState<Weekday[]>([])
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -57,6 +59,7 @@ export default function NewTemplatePage() {
     })
     if (error) {
       console.error('[templates] insert failed', error)
+      setSaveError("Couldn't save the quick start. Try again.")
       setSaving(false)
       return
     }
@@ -172,6 +175,7 @@ export default function NewTemplatePage() {
       >
         {saving ? 'Saving…' : 'Save quick start'}
       </button>
+      {saveError && <ErrorToast message={saveError} onDismiss={() => setSaveError(null)} />}
     </main>
   )
 }

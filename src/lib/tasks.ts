@@ -54,3 +54,24 @@ export function nameFromTasks(tasks: SessionTask[]): string | null {
   if (tasks.length === 0) return null
   return [...tasks].sort((a, b) => a.position - b.position).map((t) => t.name).join(', ')
 }
+
+/**
+ * Check-offs for a saved-for-later session being resumed. The database keeps
+ * each finished task's duration; rebuilding the session-elapsed moment of
+ * each check-off (a running sum, in check-off order) lets taskDurations()
+ * give back the same durations instead of piling all the time on one task.
+ */
+export function restoreCheckOffs<
+  T extends { completed_at: string | null; duration_seconds: number | null }
+>(tasks: T[]): Array<T & { elapsedSecondsAtCompletion: number | null }> {
+  const order = tasks
+    .filter((t) => t.completed_at !== null)
+    .sort((a, b) => a.completed_at!.localeCompare(b.completed_at!))
+  const elapsedAt = new Map<T, number>()
+  let sum = 0
+  for (const t of order) {
+    sum += t.duration_seconds ?? 0
+    elapsedAt.set(t, sum)
+  }
+  return tasks.map((t) => ({ ...t, elapsedSecondsAtCompletion: elapsedAt.get(t) ?? null }))
+}

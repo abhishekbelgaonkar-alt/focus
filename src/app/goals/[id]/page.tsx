@@ -3,9 +3,12 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SessionRow } from '@/components/SessionRow'
-import { formatDuration, timeAgo, localDateKey } from '@/lib/format'
+import { formatDuration, timeAgo } from '@/lib/format'
 import { getGoalColor } from '@/lib/goal-color'
-import { calcDayStreak } from '@/lib/stats'
+import { streakFromDays, fetchDailyTotals, type DailyTotal } from '@/lib/stats'
+import { ErrorToast } from '@/components/ErrorToast'
+
+const PAGE_SIZE = 50
 
 interface SessionItem {
   id: string
@@ -37,23 +40,63 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
   const [linkedWith, setLinkedWith] = useState<string[]>([])
   const [shareLink, setShareLink] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
+  const [days, setDays] = useState<DailyTotal[]>([])
+  const [taskCounts, setTaskCounts] = useState({ total: 0, done: 0 })
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  // One page of this goal's sessions, newest first.
+  const fetchSessions = (from: number) =>
+    supabase
+      .from('sessions')
+      .select('id, session_name, started_at, actual_duration_minutes, rating, session_tasks(id, completed_at)')
+      .eq('goal_id', goalId)
+      .eq('status', 'completed')
+      .order('started_at', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
+
+  // Tasks in this goal's completed sessions; only the count is fetched.
+  const countTasks = (doneOnly: boolean) => {
+    let q = supabase
+      .from('session_tasks')
+      .select('id, sessions!inner(goal_id, status)', { count: 'exact', head: true })
+      .eq('sessions.goal_id', goalId)
+      .eq('sessions.status', 'completed')
+    if (doneOnly) q = q.not('completed_at', 'is', null)
+    return q
+  }
 
   const load = async () => {
-    const [{ data: g }, { data: s }] = await Promise.all([
+    // Totals and streaks come from per-day sums computed in the database, so
+    // they cover every session; the list below loads a page at a time.
+    const [{ data: g }, { data: s }, daily, { count: taskTotal }, { count: taskDone }] = await Promise.all([
       supabase
         .from('goals')
         .select('id, name, color, status, created_at, link_group_id, user_id')
         .eq('id', goalId)
         .single(),
-      supabase
-        .from('sessions')
-        .select('id, session_name, started_at, actual_duration_minutes, rating, session_tasks(id, completed_at)')
-        .eq('goal_id', goalId)
-        .eq('status', 'completed')
-        .order('started_at', { ascending: false }),
+      fetchSessions(0),
+      fetchDailyTotals(supabase, goalId).catch(() => [] as DailyTotal[]),
+      countTasks(false),
+      countTasks(true),
     ])
     if (g) setGoal(g as GoalData)
-    setSessions((s ?? []) as unknown as SessionItem[])
+    const rows = (s ?? []) as unknown as SessionItem[]
+    setSessions(rows)
+    setHasMore(rows.length === PAGE_SIZE)
+    setDays(daily)
+    setTaskCounts({ total: taskTotal ?? 0, done: taskDone ?? 0 })
+
+    // This goal's share link, if one was made earlier.
+    const { data: invite } = await supabase
+      .from('goal_share_invites')
+      .select('short_code')
+      .eq('goal_id', goalId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    setShareLink(invite ? `${window.location.origin}/goal-invite/${invite.short_code}` : null)
 
     // Other people holding a linked copy of this goal. Their goals aren't
     // readable directly, so the server looks them up.
@@ -66,10 +109,33 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
   const shareGoal = async () => {
     const { data } = await supabase.rpc('generate_goal_share_code', { p_goal_id: goalId })
     const code = typeof data === 'string' ? data : null
-    if (code) {
-      setShareLink(`${window.location.origin}/goal-invite/${code}`)
-      setShareCopied(false)
-    }
+    if (!code) { setActionError("Couldn't create a share link. Try again."); return }
+    setShareLink(`${window.location.origin}/goal-invite/${code}`)
+    setShareCopied(false)
+  }
+
+  const stopSharing = async () => {
+    const { error } = await supabase.from('goal_share_invites').delete().eq('goal_id', goalId)
+    if (error) { setActionError("Couldn't turn off the link. Try again."); return }
+    setShareLink(null)
+  }
+
+  // Leaves the linked group: this copy of the goal becomes a plain goal.
+  const unlink = async () => {
+    const { error } = await supabase.from('goals').update({ link_group_id: null }).eq('id', goalId)
+    if (error) { setActionError("Couldn't unlink this goal. Try again."); return }
+    setGoal((prev) => (prev ? { ...prev, link_group_id: null } : prev))
+    setLinkedWith([])
+  }
+
+  const loadMore = async () => {
+    setLoadingMore(true)
+    const { data, error } = await fetchSessions(sessions.length)
+    setLoadingMore(false)
+    if (error) { setActionError("Couldn't load more sessions."); return }
+    const rows = (data ?? []) as unknown as SessionItem[]
+    setSessions((prev) => [...prev, ...rows])
+    setHasMore(rows.length === PAGE_SIZE)
   }
 
   const copyShare = async () => {
@@ -85,7 +151,8 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
   }, [goalId])
 
   const setStatus = async (status: GoalData['status']) => {
-    await supabase.from('goals').update({ status }).eq('id', goalId)
+    const { error } = await supabase.from('goals').update({ status }).eq('id', goalId)
+    if (error) { setActionError("Couldn't update the goal. Try again."); return }
     setGoal((prev) => (prev ? { ...prev, status } : prev))
   }
 
@@ -95,18 +162,13 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
   const color = getGoalColor({ id: goal.id, color: goal.color })
 
   // Aggregate stats
-  const totalMinutes = sessions.reduce((sum, s) => sum + s.actual_duration_minutes, 0)
-  const ratings = sessions.map((s) => s.rating).filter((r): r is number => r !== null)
-  const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
-
-  // Unique days worked
-  const uniqueDays = new Set(sessions.map((s) => localDateKey(s.started_at))).size
-  // Consecutive-day streak
-  const streak = calcDayStreak(sessions.map((s) => s.started_at))
-  // Task tallies
-  const allTasks = sessions.flatMap((s) => s.session_tasks ?? [])
-  const taskTotal = allTasks.length
-  const taskDone = allTasks.filter((t) => t.completed_at !== null).length
+  const totalMinutes = days.reduce((sum, d) => sum + d.minutes, 0)
+  const sessionCount = days.reduce((sum, d) => sum + d.sessions, 0)
+  const rated = days.reduce((sum, d) => sum + d.rated, 0)
+  const avgRating = rated > 0 ? days.reduce((sum, d) => sum + d.rating_sum, 0) / rated : null
+  const uniqueDays = days.length
+  const streak = streakFromDays(days.map((d) => d.date))
+  const { total: taskTotal, done: taskDone } = taskCounts
   // Last session
   const lastAt = sessions[0]?.started_at ?? null
 
@@ -141,6 +203,8 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
         <p className="font-sans text-xs text-text-muted mb-2">
           Linked with{' '}
           <span className="text-text-primary">{linkedWith.join(', ')}</span>
+          {' · '}
+          <button onClick={unlink} className="underline">unlink</button>
         </p>
       )}
       <div className="mb-8">
@@ -160,6 +224,9 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
                 {shareCopied ? 'Copied' : 'Copy'}
               </button>
             </div>
+            <button onClick={stopSharing} className="font-sans text-xs text-text-muted mt-2 underline">
+              Stop sharing (the link stops working)
+            </button>
           </div>
         ) : (
           <button
@@ -183,7 +250,7 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
       <div className="grid grid-cols-4 gap-4 mb-10">
         <div>
           <p className="font-numbers text-lg font-semibold text-text-primary">
-            {sessions.length}
+            {sessionCount}
           </p>
           <p className="font-sans text-xs text-text-muted mt-0.5">sessions</p>
         </div>
@@ -284,8 +351,18 @@ export default function GoalDetailPage({ params }: { params: Promise<{ id: strin
               onClick={() => router.push(`/sessions/${s.id}`)}
             />
           ))}
+          {hasMore && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="w-full font-sans text-xs text-coral py-3 disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : 'Show more'}
+            </button>
+          )}
         </div>
       )}
+      {actionError && <ErrorToast message={actionError} onDismiss={() => setActionError(null)} />}
     </main>
   )
 }
